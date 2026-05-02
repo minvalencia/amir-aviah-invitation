@@ -26,19 +26,38 @@ const DB_DIR = path.dirname(process.env.DB_PATH || './data/rsvps.db');
 if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 
 const db = new Database(process.env.DB_PATH || './data/rsvps.db');
+
+// Schema sync — runs on every boot, idempotent.
+// New tables persist across restarts on a Render Starter plan with a mounted disk.
+// `DROP TABLE IF EXISTS rsvps` is safe: once the legacy table is gone, it no-ops.
 db.exec(`
-  CREATE TABLE IF NOT EXISTS rsvps (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    name         TEXT NOT NULL,
-    email        TEXT,
-    phone        TEXT,
-    attending    TEXT NOT NULL,            -- 'yes' or 'no'
-    guests       INTEGER DEFAULT 1,        -- number of attendees including the responder
-    kids         INTEGER DEFAULT 0,        -- number of children attending
-    message      TEXT,
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+  CREATE TABLE IF NOT EXISTS families (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    token           TEXT NOT NULL UNIQUE,
+    name            TEXT NOT NULL,
+    max_slots       INTEGER NOT NULL CHECK (max_slots BETWEEN 1 AND 20),
+    attending       TEXT CHECK (attending IN ('yes', 'no')),
+    attendee_count  INTEGER CHECK (attendee_count >= 0),
+    message         TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    claimed_at      DATETIME,
+    updated_at      DATETIME
   );
+  CREATE INDEX IF NOT EXISTS idx_families_token ON families(token);
+
+  CREATE TABLE IF NOT EXISTS attendees (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id  INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    position   INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_attendees_family ON attendees(family_id);
+
+  DROP TABLE IF EXISTS rsvps;
 `);
+
+// Foreign keys are off by default in SQLite; turn them on so ON DELETE CASCADE works.
+db.pragma('foreign_keys = ON');
 
 // ---------- Middleware ----------
 app.use(express.json());
