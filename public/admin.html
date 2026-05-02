@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RSVP Admin Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --red:    #E63946;
+      --pink:   #FF85A1;
+      --black:  #1A1A1A;
+      --cream:  #FFF8E7;
+      --gray:   #F0F0F0;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Quicksand', sans-serif;
+      background: #f5f5f5;
+      color: var(--black);
+      min-height: 100vh;
+    }
+    header {
+      background: var(--black);
+      color: var(--cream);
+      padding: 1.5rem 2rem;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
+    }
+    h1 {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.6rem;
+      display: flex; align-items: center; gap: 0.6rem;
+    }
+    h1::before {
+      content: '';
+      width: 32px; height: 32px;
+      background: radial-gradient(circle at 30% 30%, var(--red) 50%, transparent 51%),
+                  radial-gradient(circle at 70% 30%, var(--red) 50%, transparent 51%),
+                  radial-gradient(circle at 50% 70%, var(--red) 50%, transparent 51%);
+    }
+    .download-btn {
+      background: var(--red);
+      color: var(--cream);
+      border: none;
+      padding: 0.7rem 1.4rem;
+      border-radius: 999px;
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      transition: background 0.2s;
+    }
+    .download-btn:hover { background: #C1121F; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1rem;
+      padding: 2rem;
+    }
+    .stat {
+      background: #fff;
+      border-radius: 16px;
+      padding: 1.4rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      border-top: 5px solid var(--red);
+    }
+    .stat-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #666;
+    }
+    .stat-value {
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 700;
+      font-size: 2.4rem;
+      margin-top: 0.4rem;
+      color: var(--black);
+    }
+    .stat:nth-child(2) { border-color: #06A77D; }
+    .stat:nth-child(3) { border-color: #B0B0B0; }
+    .stat:nth-child(4) { border-color: var(--pink); }
+    .stat:nth-child(5) { border-color: #F4C430; }
+
+    .table-wrap {
+      margin: 0 2rem 2rem;
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+    .table-header {
+      padding: 1.2rem 1.4rem;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--gray);
+      flex-wrap: wrap; gap: 0.8rem;
+    }
+    .table-header h2 {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.2rem;
+    }
+    .filter {
+      display: flex; gap: 0.5rem;
+    }
+    .filter button {
+      padding: 0.4rem 1rem;
+      border: 2px solid var(--black);
+      background: #fff;
+      border-radius: 999px;
+      cursor: pointer;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 0.85rem;
+      transition: all 0.15s;
+    }
+    .filter button.active {
+      background: var(--black);
+      color: var(--cream);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+    thead {
+      background: var(--cream);
+    }
+    th {
+      text-align: left;
+      padding: 0.85rem 1rem;
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #555;
+      border-bottom: 2px solid var(--gray);
+    }
+    td {
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--gray);
+      vertical-align: top;
+    }
+    tr:hover { background: #fafafa; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .badge.yes { background: #D4F4DD; color: #06A77D; }
+    .badge.no  { background: #FCE4E6; color: var(--red); }
+
+    .empty {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #888;
+    }
+    .empty-emoji { font-size: 3rem; margin-bottom: 0.5rem; }
+
+    .delete-btn {
+      background: transparent;
+      border: 1px solid #ddd;
+      color: #999;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+    .delete-btn:hover { border-color: var(--red); color: var(--red); }
+
+    .message-cell {
+      max-width: 280px;
+      font-size: 0.88rem;
+      color: #555;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 720px) {
+      .stats { padding: 1rem; }
+      .table-wrap { margin: 0 1rem 1rem; }
+      th, td { padding: 0.6rem; font-size: 0.85rem; }
+      th:nth-child(3), td:nth-child(3),
+      th:nth-child(4), td:nth-child(4),
+      th:nth-child(8), td:nth-child(8) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>RSVP Dashboard</h1>
+    <a id="download-link" class="download-btn">
+      ⬇️ Download Excel
+    </a>
+  </header>
+
+  <section class="stats" id="stats">
+    <div class="stat">
+      <div class="stat-label">Total Responses</div>
+      <div class="stat-value" id="stat-total">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Attending</div>
+      <div class="stat-value" id="stat-yes">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Not Attending</div>
+      <div class="stat-value" id="stat-no">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total Attendees</div>
+      <div class="stat-value" id="stat-attendees">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Of Which Kids</div>
+      <div class="stat-value" id="stat-kids">0</div>
+    </div>
+  </section>
+
+  <section class="table-wrap">
+    <div class="table-header">
+      <h2>All Responses</h2>
+      <div class="filter">
+        <button data-filter="all" class="active">All</button>
+        <button data-filter="yes">Attending</button>
+        <button data-filter="no">Declined</button>
+      </div>
+    </div>
+    <div id="table-container"></div>
+  </section>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>

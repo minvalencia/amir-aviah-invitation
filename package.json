@@ -1,0 +1,20 @@
+{
+  "name": "mickey-minnie-invitation",
+  "version": "1.0.0",
+  "description": "3D invitation website with Mickey & Minnie theme",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "better-sqlite3": "^11.3.0",
+    "exceljs": "^4.4.0",
+    "express-basic-auth": "^1.2.1",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

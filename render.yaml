@@ -1,0 +1,32 @@
+# Render Blueprint — one-click deployment config
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: mickey-minnie-invitation
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: ADMIN_USER
+        sync: false           # set this in Render dashboard
+      - key: ADMIN_PASS
+        sync: false           # set this in Render dashboard
+      - key: ADMIN_PATH
+        sync: false           # set this in Render dashboard
+      - key: DB_PATH
+        value: /app/data/rsvps.db
+      - key: NODE_ENV
+        value: production
+
+    # ⚠️ IMPORTANT: Persistent disks are NOT available on Render's free plan.
+    # On the free plan, the SQLite DB will be wiped on each redeploy/restart.
+    # Workaround: download the Excel file BEFORE redeploying, or upgrade to
+    # Render's Starter plan ($7/mo) and uncomment the disk block below to
+    # keep RSVPs persisted across restarts.
+    #
+    # disk:
+    #   name: rsvp-data
+    #   mountPath: /app/data
+    #   sizeGB: 1

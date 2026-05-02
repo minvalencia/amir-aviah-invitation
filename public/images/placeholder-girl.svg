@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD6E0"/>
+      <stop offset="1" stop-color="#FF85A1"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg2)"/>
+  <!-- minnie ears with bow -->
+  <circle cx="120" cy="140" r="35" fill="#1A1A1A"/>
+  <circle cx="180" cy="140" r="35" fill="#1A1A1A"/>
+  <!-- bow -->
+  <path d="M 130 105 L 110 90 L 110 130 L 130 115 L 150 130 L 170 115 L 190 130 L 190 90 L 170 105 Z" fill="#FF477E" stroke="#1A1A1A" stroke-width="2"/>
+  <circle cx="150" cy="115" r="6" fill="#FF477E" stroke="#1A1A1A" stroke-width="2"/>
+  <!-- white polka dots on bow -->
+  <circle cx="120" cy="105" r="3" fill="#fff"/>
+  <circle cx="180" cy="105" r="3" fill="#fff"/>
+  <circle cx="125" cy="120" r="3" fill="#fff"/>
+  <circle cx="175" cy="120" r="3" fill="#fff"/>
+  <circle cx="150" cy="200" r="55" fill="#F4C19F" stroke="#1A1A1A" stroke-width="3"/>
+  <circle cx="135" cy="190" r="5" fill="#1A1A1A"/>
+  <circle cx="165" cy="190" r="5" fill="#1A1A1A"/>
+  <!-- lashes -->
+  <path d="M 130 185 L 128 182" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 170 185 L 172 182" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 130 215 Q 150 230 170 215" stroke="#1A1A1A" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <text x="150" y="320" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#1A1A1A" font-weight="600">Add Girl Photo</text>
+  <text x="150" y="345" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#666">images/kid-2.png</text>
+</svg>
