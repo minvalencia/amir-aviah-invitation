@@ -185,23 +185,6 @@ app.get(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
   res.json({ ok: true, stats, families: result });
 });
 
-// API: list all RSVPs
-app.get(`/${ADMIN_PATH}/api/list`, adminAuth, (req, res) => {
-  const rows = db.prepare('SELECT * FROM rsvps ORDER BY created_at DESC').all();
-
-  const stats = {
-    total_responses: rows.length,
-    yes_count:       rows.filter(r => r.attending === 'yes').length,
-    no_count:        rows.filter(r => r.attending === 'no').length,
-    total_attendees: rows.filter(r => r.attending === 'yes')
-                         .reduce((s, r) => s + (r.guests || 0), 0),
-    total_kids:      rows.filter(r => r.attending === 'yes')
-                         .reduce((s, r) => s + (r.kids   || 0), 0)
-  };
-
-  res.json({ ok: true, stats, rows });
-});
-
 // API: download Excel
 app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
   const rows = db.prepare('SELECT * FROM rsvps ORDER BY created_at DESC').all();
@@ -264,11 +247,13 @@ app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
   res.end();
 });
 
-// API: delete a RSVP (in case of duplicates/mistakes)
-app.delete(`/${ADMIN_PATH}/api/rsvp/:id`, adminAuth, (req, res) => {
+// ---------- Admin: delete family ----------
+app.delete(`/${ADMIN_PATH}/api/families/:id`, adminAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
-  db.prepare('DELETE FROM rsvps WHERE id = ?').run(id);
-  res.json({ ok: true });
+  if (!Number.isInteger(id)) return res.status(400).json({ ok: false, error: 'Bad id.' });
+  // ON DELETE CASCADE handles attendees.
+  const result = db.prepare('DELETE FROM families WHERE id = ?').run(id);
+  res.json({ ok: true, deleted: result.changes });
 });
 
 // ---------- Health check (Render uses this) ----------
