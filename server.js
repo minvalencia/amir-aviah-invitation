@@ -100,6 +100,64 @@ app.get(`/${ADMIN_PATH}`, adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// ---------- Helpers shared across family routes ----------
+function familyToShareUrl(req, token) {
+  // Render's https proxy and local http both work via req.protocol + req.get('host')
+  return `${req.protocol}://${req.get('host')}/i/${token}`;
+}
+
+function familyToJSON(family, attendees) {
+  // Convert SQLite TEXT timestamps to ISO-8601 with Z so client time math works.
+  const isoOrNull = (s) => s ? s.replace(' ', 'T') + 'Z' : null;
+  return {
+    id: family.id,
+    name: family.name,
+    max_slots: family.max_slots,
+    attending: family.attending,
+    attendee_count: family.attendee_count,
+    message: family.message,
+    created_at: isoOrNull(family.created_at),
+    claimed_at: isoOrNull(family.claimed_at),
+    updated_at: isoOrNull(family.updated_at),
+    attendees: (attendees || []).map(a => ({ name: a.name, position: a.position }))
+  };
+}
+
+// ---------- Admin: create family ----------
+app.post(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    const maxSlots = parseInt(req.body?.max_slots, 10);
+    if (!name) return res.status(400).json({ ok: false, error: 'Family name is required.' });
+    if (!Number.isInteger(maxSlots) || maxSlots < 1 || maxSlots > 20) {
+      return res.status(400).json({ ok: false, error: 'max_slots must be an integer 1..20.' });
+    }
+
+    const insert = db.prepare(`
+      INSERT INTO families (token, name, max_slots) VALUES (?, ?, ?)
+    `);
+
+    // Retry loop on UNIQUE-constraint collision (vanishingly rare).
+    let row = null;
+    for (let attempt = 0; attempt < 5 && !row; attempt++) {
+      const token = generateToken();
+      try {
+        const result = insert.run(token, name, maxSlots);
+        row = db.prepare('SELECT * FROM families WHERE id = ?').get(result.lastInsertRowid);
+      } catch (e) {
+        if (!/UNIQUE constraint failed/i.test(e.message)) throw e;
+      }
+    }
+    if (!row) return res.status(500).json({ ok: false, error: 'Could not allocate token.' });
+
+    const family = familyToJSON(row, []);
+    res.json({ ok: true, family, share_url: familyToShareUrl(req, row.token) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: 'Server error.' });
+  }
+});
+
 // API: list all RSVPs
 app.get(`/${ADMIN_PATH}/api/list`, adminAuth, (req, res) => {
   const rows = db.prepare('SELECT * FROM rsvps ORDER BY created_at DESC').all();
