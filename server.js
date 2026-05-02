@@ -158,6 +158,33 @@ app.post(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
   }
 });
 
+// ---------- Admin: list families ----------
+app.get(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
+  const families = db.prepare('SELECT * FROM families ORDER BY created_at DESC').all();
+  const attStmt = db.prepare('SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position');
+
+  const result = families.map(f => {
+    const att = attStmt.all(f.id);
+    return {
+      ...familyToJSON(f, att),
+      share_url: familyToShareUrl(req, f.token),
+      token: f.token
+    };
+  });
+
+  // Stats — derive from the family rows
+  const stats = {
+    families_total:    result.length,
+    yes_count:         result.filter(r => r.attending === 'yes').length,
+    no_count:          result.filter(r => r.attending === 'no').length,
+    pending_count:     result.filter(r => r.attending === null).length,
+    total_attendees:   result.filter(r => r.attending === 'yes')
+                             .reduce((s, r) => s + (r.attendee_count || 0), 0)
+  };
+
+  res.json({ ok: true, stats, families: result });
+});
+
 // API: list all RSVPs
 app.get(`/${ADMIN_PATH}/api/list`, adminAuth, (req, res) => {
   const rows = db.prepare('SELECT * FROM rsvps ORDER BY created_at DESC').all();
