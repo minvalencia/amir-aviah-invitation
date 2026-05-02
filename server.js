@@ -59,6 +59,27 @@ db.exec(`
 // Foreign keys are off by default in SQLite; turn them on so ON DELETE CASCADE works.
 db.pragma('foreign_keys = ON');
 
+// ---------- Token generation ----------
+// 12-char base62 (A-Z a-z 0-9). Search space ≈ 3.2e21.
+// Rejection-sample bytes from crypto.randomBytes() to avoid modulo bias:
+// for byte b, accept if b < 248 (largest multiple of 62 that fits in a byte),
+// else reject. Pull 16 bytes at a time; loop until 12 chars accumulated.
+const crypto = require('crypto');
+const TOKEN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const TOKEN_LEN = 12;
+
+function generateToken() {
+  let out = '';
+  while (out.length < TOKEN_LEN) {
+    const buf = crypto.randomBytes(16);
+    for (let i = 0; i < buf.length && out.length < TOKEN_LEN; i++) {
+      const b = buf[i];
+      if (b < 248) out += TOKEN_ALPHABET[b % 62];
+    }
+  }
+  return out;
+}
+
 // ---------- Middleware ----------
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
