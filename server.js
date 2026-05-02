@@ -87,39 +87,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Public endpoints ----------
 
-// Submit RSVP
-app.post('/api/rsvp', (req, res) => {
-  try {
-    const { name, email, phone, attending, guests, kids, message } = req.body;
-
-    if (!name || !attending) {
-      return res.status(400).json({ ok: false, error: 'Name and attendance are required.' });
-    }
-    if (!['yes', 'no'].includes(attending)) {
-      return res.status(400).json({ ok: false, error: 'Invalid attendance value.' });
-    }
-
-    const stmt = db.prepare(`
-      INSERT INTO rsvps (name, email, phone, attending, guests, kids, message)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-      String(name).trim().slice(0, 120),
-      email ? String(email).trim().slice(0, 200) : null,
-      phone ? String(phone).trim().slice(0, 60)  : null,
-      attending,
-      Math.max(0, parseInt(guests || 1, 10)),
-      Math.max(0, parseInt(kids   || 0, 10)),
-      message ? String(message).trim().slice(0, 1000) : null
-    );
-
-    res.json({ ok: true, id: result.lastInsertRowid });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false, error: 'Server error.' });
-  }
-});
-
 // ---------- Admin (protected) ----------
 const adminAuth = basicAuth({
   users: { [ADMIN_USER]: ADMIN_PASS },
