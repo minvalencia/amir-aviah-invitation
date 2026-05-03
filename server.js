@@ -351,22 +351,30 @@ function familyToJSON(family, attendees) {
 app.post(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
   try {
     const name = String(req.body?.name || '').trim().slice(0, 120);
-    const maxSlots = parseInt(req.body?.max_slots, 10);
+    const adultSlots = parseInt(req.body?.adult_slots, 10);
+    const kidSlots   = parseInt(req.body?.kid_slots, 10);
+
     if (!name) return res.status(400).json({ ok: false, error: 'Family name is required.' });
-    if (!Number.isInteger(maxSlots) || maxSlots < 1 || maxSlots > 20) {
-      return res.status(400).json({ ok: false, error: 'max_slots must be an integer 1..20.' });
+    if (!Number.isInteger(adultSlots) || adultSlots < 0 || adultSlots > 20) {
+      return res.status(400).json({ ok: false, error: 'adult_slots must be an integer 0..20.' });
+    }
+    if (!Number.isInteger(kidSlots) || kidSlots < 0 || kidSlots > 20) {
+      return res.status(400).json({ ok: false, error: 'kid_slots must be an integer 0..20.' });
+    }
+    const total = adultSlots + kidSlots;
+    if (total < 1 || total > 20) {
+      return res.status(400).json({ ok: false, error: 'Total slots (adults + kids) must be 1..20.' });
     }
 
     const insert = db.prepare(`
-      INSERT INTO families (token, name, max_slots) VALUES (?, ?, ?)
+      INSERT INTO families (token, name, adult_slots, kid_slots) VALUES (?, ?, ?, ?)
     `);
 
-    // Retry loop on UNIQUE-constraint collision (vanishingly rare).
     let row = null;
     for (let attempt = 0; attempt < 5 && !row; attempt++) {
       const token = generateToken();
       try {
-        const result = insert.run(token, name, maxSlots);
+        const result = insert.run(token, name, adultSlots, kidSlots);
         row = db.prepare('SELECT * FROM families WHERE id = ?').get(result.lastInsertRowid);
       } catch (e) {
         if (!/UNIQUE constraint failed/i.test(e.message)) throw e;
