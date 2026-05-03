@@ -187,12 +187,13 @@
       th:nth-child(4), td:nth-child(4),
       th:nth-child(8), td:nth-child(8) { display: none; }
     }
-/* Stat tile color overrides — 5 tiles now */
+/* Stat tile color overrides — 6 tiles now */
 .stat:nth-child(1) { border-color: var(--red); }
 .stat:nth-child(2) { border-color: #06A77D; }
 .stat:nth-child(3) { border-color: var(--red); }
 .stat:nth-child(4) { border-color: #B0B0B0; }
 .stat:nth-child(5) { border-color: var(--pink); }
+.stat:nth-child(6) { border-color: #F4C430; }
 
 .add-family {
   margin: 0 2rem 1.5rem;
@@ -269,11 +270,12 @@
   </header>
 
   <section class="stats" id="stats">
-    <div class="stat"><div class="stat-label">Families</div>      <div class="stat-value" id="stat-total">0</div></div>
-    <div class="stat"><div class="stat-label">Yes</div>           <div class="stat-value" id="stat-yes">0</div></div>
-    <div class="stat"><div class="stat-label">No</div>            <div class="stat-value" id="stat-no">0</div></div>
-    <div class="stat"><div class="stat-label">Pending</div>       <div class="stat-value" id="stat-pending">0</div></div>
-    <div class="stat"><div class="stat-label">Total Attendees</div><div class="stat-value" id="stat-attendees">0</div></div>
+    <div class="stat"><div class="stat-label">Families</div><div class="stat-value" id="stat-total">0</div></div>
+    <div class="stat"><div class="stat-label">Yes</div>     <div class="stat-value" id="stat-yes">0</div></div>
+    <div class="stat"><div class="stat-label">No</div>      <div class="stat-value" id="stat-no">0</div></div>
+    <div class="stat"><div class="stat-label">Pending</div> <div class="stat-value" id="stat-pending">0</div></div>
+    <div class="stat"><div class="stat-label">Adults</div>  <div class="stat-value" id="stat-adults">0</div></div>
+    <div class="stat"><div class="stat-label">Kids</div>    <div class="stat-value" id="stat-kids">0</div></div>
   </section>
 
   <section class="add-family">
@@ -283,12 +285,15 @@
         <label>Family Name
           <input type="text" id="af-name" name="name" required maxlength="120" placeholder="e.g. Valencia Family" />
         </label>
-        <label>Slots
-          <input type="number" id="af-slots" name="max_slots" required min="1" max="20" value="4" />
+        <label>Adults
+          <input type="number" id="af-adults" name="adult_slots" required min="0" max="20" value="2" />
+        </label>
+        <label>Kids
+          <input type="number" id="af-kids" name="kid_slots" required min="0" max="20" value="2" />
         </label>
         <button type="submit" class="create-btn">Create Invitation</button>
       </div>
-      <p class="add-hint">A unique link is generated and copied to your clipboard, ready to paste into WhatsApp.</p>
+      <p class="add-hint">A unique link is generated and copied to your clipboard, ready to paste into WhatsApp. Adults + kids must total 1–20.</p>
     </form>
   </section>
 
