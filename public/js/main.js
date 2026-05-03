@@ -460,9 +460,26 @@ function buildPassSnapshot(family) {
   const isYes = family.attending === 'yes';
   const safeName = escapeHTML(fit(family.name, 60));
   const safeMessage = family.message ? escapeHTML(fit(family.message, 240)) : '';
-  const attendees = (family.attendees || []).map(a =>
-    `<li style="font-family:'Caveat',cursive;font-size:22px;color:#0a0c1f;line-height:1.25;margin:2px 0;">✦ ${escapeHTML(fit(a.name, 40))}</li>`
-  ).join('');
+  const renderKindBlock = (label, list) => {
+    if (!list.length) return '';
+    const items = list.map(a =>
+      `<li style="font-family:'Caveat',cursive;font-size:22px;color:#0a0c1f;line-height:1.25;margin:2px 0;">✦ ${escapeHTML(fit(a.name, 40))}</li>`
+    ).join('');
+    return `
+      <div style="font-family:'Bungee',sans-serif; font-size:10px; letter-spacing:.25em; color:#b51c2a; text-align:center; margin-top:8px;">
+        ★ ${label.toUpperCase()} (${list.length})
+      </div>
+      <ul style="list-style:none; padding:0; margin:6px 0 0; text-align:center;">
+        ${items}
+      </ul>`;
+  };
+  const adultList = (family.attendees || []).filter(a => a.kind === 'adult');
+  const kidList   = (family.attendees || []).filter(a => a.kind === 'kid');
+  const attendeesBlock = (isYes && (adultList.length || kidList.length)) ? `
+    <div style="border-top:2px dashed rgba(0,0,0,.25); padding:14px 0 4px;">
+      ${renderKindBlock('Adults', adultList)}
+      ${renderKindBlock('Kids',   kidList)}
+    </div>` : '';
   const passNum = String(family.id ?? 0).padStart(4, '0');
 
   const wrap = document.createElement('div');
@@ -520,16 +537,7 @@ function buildPassSnapshot(family) {
         ">${isYes ? 'CONFIRMED · YES' : 'DECLINED · NO'}</span>
       </div>
 
-      ${isYes && attendees ? `
-      <!-- Attendees list -->
-      <div style="border-top:2px dashed rgba(0,0,0,.25); padding:14px 0 4px;">
-        <div style="font-family:'Bungee',sans-serif; font-size:10px; letter-spacing:.25em; color:#b51c2a; text-align:center;">
-          ${family.attendee_count} ATTENDEE${family.attendee_count === 1 ? '' : 'S'}
-        </div>
-        <ul style="list-style:none; padding:0; margin:8px 0 0; text-align:center;">
-          ${attendees}
-        </ul>
-      </div>` : ''}
+      ${attendeesBlock}
 
       ${safeMessage ? `
       <div style="font-family:'Caveat',cursive; font-size:18px; color:#1c1e3d; font-style:italic; text-align:center; margin:12px 24px 0; line-height:1.3;">
