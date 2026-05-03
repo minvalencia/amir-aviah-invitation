@@ -1091,3 +1091,117 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   Landing modes — body[data-landing-mode] gates form vs gate
+   ============================================================ */
+
+/* Default: hide the gate-link / gate-invalid scrim. */
+.gate-link-card, .gate-invalid-card { display: none; }
+
+/* When a personal link is required, hide the form and show the card. */
+body[data-landing-mode="gate-link"] .rsvp-form,
+body[data-landing-mode="gate-link"] .bp-flight,
+body[data-landing-mode="gate-link"] [data-bp-slots-line],
+body[data-landing-mode="gate-link"] [data-bp-family-name] { display: none; }
+body[data-landing-mode="gate-link"] .gate-link-card { display: block; }
+
+body[data-landing-mode="gate-invalid"] .rsvp-form,
+body[data-landing-mode="gate-invalid"] .bp-flight,
+body[data-landing-mode="gate-invalid"] [data-bp-slots-line],
+body[data-landing-mode="gate-invalid"] [data-bp-family-name] { display: none; }
+body[data-landing-mode="gate-invalid"] .gate-invalid-card { display: block; }
+body[data-landing-mode="gate-invalid"] [data-bp-title] { color: var(--mickey-red-deep); }
+
+/* gate-family — show family name above the form. */
+body[data-landing-mode="gate-family"] [data-bp-family-name] {
+  display: block;
+  font-family: 'Caveat', cursive;
+  font-size: 1.6rem;
+  color: var(--mickey-red-deep);
+  margin-top: 4px;
+}
+body[data-landing-mode="gate-family"] [data-bp-slots-line] {
+  display: block;
+  font-family: 'Bungee', sans-serif;
+  font-size: 10px;
+  letter-spacing: .2em;
+  color: var(--mickey-red-deep);
+  margin: 8px 0 4px;
+}
+
+/* The two cards themselves. */
+.gate-link-card, .gate-invalid-card {
+  padding: 18px 4px;
+  text-align: center;
+  font-family: 'Fredoka', sans-serif;
+}
+.gate-link-card h4, .gate-invalid-card h4 {
+  font-family: 'Lilita One', cursive;
+  font-size: 1.4rem;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.gate-link-card p, .gate-invalid-card p {
+  color: var(--ink-soft);
+  font-size: .95rem;
+  line-height: 1.5;
+}
+
+/* Count pills row */
+.count-pills {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;
+}
+.count-pill {
+  padding: 8px 14px;
+  border: 2px solid rgba(10,12,31,.25);
+  border-radius: 99px;
+  background: rgba(255,255,255,.5);
+  font-family: 'Bungee', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .15s, border-color .15s, background .15s, color .15s;
+  color: var(--ink);
+}
+.count-pill[aria-pressed="true"] {
+  background: var(--mickey-red); color: var(--ivory); border-color: var(--mickey-red);
+  transform: translateY(-1px);
+}
+
+/* Attendee name list */
+.attendee-list { display: flex; flex-direction: column; gap: 10px; }
+.attendee-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.attendee-row .attendee-num {
+  font-family: 'Bungee', sans-serif;
+  font-size: 10px;
+  letter-spacing: .15em;
+  color: var(--mickey-red-deep);
+  min-width: 78px;
+}
+.attendee-row input { flex: 1; }
+
+/* Last-updated line */
+.bp-last-updated {
+  font-family: 'Caveat', cursive;
+  color: var(--mickey-red-deep);
+  font-size: 1rem;
+  margin-top: -4px;
+  margin-bottom: 6px;
+}
+
+/* "Edit again" affordance shown after a successful submit */
+.edit-again-link {
+  margin-top: 14px;
+  background: none;
+  border: 0;
+  color: var(--mickey-red-deep);
+  font-family: 'Bungee', sans-serif;
+  font-size: 11px;
+  letter-spacing: .15em;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.edit-again-link:hover { color: var(--mickey-red); }
