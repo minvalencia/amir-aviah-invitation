@@ -387,26 +387,158 @@ function showStampedView() {
   setProgress(100);
 }
 
-// ---------- Download pass (html2canvas → PNG) ----------
+// ---------- Download pass ----------
+// Builds a clean, off-screen snapshot DOM tailored for PNG export, captures it
+// with html2canvas, removes it. Avoids the live boarding-pass element's quirks
+// (pseudo-element notches positioned outside the bounds, complex gradients,
+// long-name layout breakage) and produces a consistent, keepsake-quality image.
+
+function escapeHTML(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Truncate gracefully — long stress-test names shouldn't blow up the layout.
+function fit(s, max) {
+  s = String(s ?? '');
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+function buildPassSnapshot(family) {
+  const isYes = family.attending === 'yes';
+  const safeName = escapeHTML(fit(family.name, 60));
+  const safeMessage = family.message ? escapeHTML(fit(family.message, 240)) : '';
+  const attendees = (family.attendees || []).map(a =>
+    `<li style="font-family:'Caveat',cursive;font-size:22px;color:#0a0c1f;line-height:1.25;margin:2px 0;">✦ ${escapeHTML(fit(a.name, 40))}</li>`
+  ).join('');
+  const passNum = String(family.id ?? 0).padStart(4, '0');
+
+  const wrap = document.createElement('div');
+  // Off-screen but rendered, so html2canvas can read computed styles.
+  wrap.style.cssText = `
+    position:fixed; left:-10000px; top:0;
+    width:600px; box-sizing:border-box;
+    font-family:'Fredoka',system-ui,sans-serif;
+    color:#0a0c1f;
+  `;
+  wrap.innerHTML = `
+    <div style="
+      background:linear-gradient(165deg,#fff5e1 0%,#ffe1c1 100%);
+      border:3px solid #0a0c1f;
+      border-radius:18px;
+      padding:28px 32px;
+      box-shadow:0 30px 70px -22px rgba(0,0,0,.85);
+    ">
+      <!-- Header band -->
+      <div style="
+        background:#e63946; color:#fff5e1;
+        margin:-28px -32px 18px;
+        padding:10px 0;
+        text-align:center;
+        font-family:'Bungee',sans-serif; font-size:11px; letter-spacing:.3em;
+        border-radius:14px 14px 0 0;
+      ">★ VIP BOARDING PASS · No. ${passNum} ★</div>
+
+      <!-- Kingdom title -->
+      <div style="text-align:center;">
+        <div style="font-family:'Lilita One',cursive; font-size:30px; line-height:1; color:#0a0c1f;">The Valencia Kingdom</div>
+        <div style="font-family:'Caveat',cursive; font-size:18px; color:#b51c2a; margin-top:2px;">
+          Amir's Christening · Aviah's 3rd Birthday
+        </div>
+      </div>
+
+      <!-- Family name + Mickey ears motif -->
+      <div style="display:flex; align-items:center; justify-content:center; gap:14px; margin:18px 0 10px;">
+        <svg width="44" height="36" viewBox="0 0 60 50" style="flex:none;">
+          <circle cx="30" cy="32" r="16" fill="#0a0c1f"/>
+          <circle cx="14" cy="14" r="11" fill="#0a0c1f"/>
+          <circle cx="46" cy="14" r="11" fill="#0a0c1f"/>
+        </svg>
+        <div style="font-family:'Caveat',cursive; font-size:30px; line-height:1.05; color:#b51c2a; max-width:380px; text-align:left;">${safeName}</div>
+      </div>
+
+      <!-- YES / NO badge -->
+      <div style="text-align:center; margin:8px 0 18px;">
+        <span style="
+          display:inline-block;
+          font-family:'Bungee',sans-serif; font-size:22px; letter-spacing:.18em;
+          padding:6px 22px; border-radius:8px;
+          background:${isYes ? '#06A77D' : '#0a0c1f'};
+          color:#fff5e1;
+        ">${isYes ? 'CONFIRMED · YES' : 'DECLINED · NO'}</span>
+      </div>
+
+      ${isYes && attendees ? `
+      <!-- Attendees list -->
+      <div style="border-top:2px dashed rgba(0,0,0,.25); padding:14px 0 4px;">
+        <div style="font-family:'Bungee',sans-serif; font-size:10px; letter-spacing:.25em; color:#b51c2a; text-align:center;">
+          ${family.attendee_count} ATTENDEE${family.attendee_count === 1 ? '' : 'S'}
+        </div>
+        <ul style="list-style:none; padding:0; margin:8px 0 0; text-align:center;">
+          ${attendees}
+        </ul>
+      </div>` : ''}
+
+      ${safeMessage ? `
+      <div style="font-family:'Caveat',cursive; font-size:18px; color:#1c1e3d; font-style:italic; text-align:center; margin:12px 24px 0; line-height:1.3;">
+        "${safeMessage}"
+      </div>` : ''}
+
+      <!-- Event details -->
+      <div style="border-top:2px dashed rgba(0,0,0,.25); margin-top:18px; padding-top:14px; text-align:center;">
+        <div style="font-family:'Bungee',sans-serif; font-size:10px; letter-spacing:.25em; color:#b51c2a;">⛪ CHRISTENING · 11:00 AM</div>
+        <div style="font-family:'Lilita One',cursive; font-size:18px; line-height:1.1; margin-top:2px;">Saturday, June 13, 2026</div>
+        <div style="font-family:'Fredoka',sans-serif; font-size:13px; color:#1c1e3d; margin-top:2px;">
+          Immaculate Conception Parish<br/>Concepcion, Marikina · Diocese of Antipolo
+        </div>
+        <div style="font-family:'Bungee',sans-serif; font-size:10px; letter-spacing:.25em; color:#b51c2a; margin:14px 0 2px;">🎉 RECEPTION · 12:00 PM</div>
+        <div style="font-family:'Fredoka',sans-serif; font-size:13px; color:#1c1e3d;">
+          Naysa's Kitchen · 67 Katipunan St, Marikina
+        </div>
+      </div>
+
+      <!-- STAMPED mark -->
+      <div style="text-align:center; margin-top:20px;">
+        <span style="display:inline-block; transform:rotate(-6deg);
+          font-family:'Bungee',sans-serif; font-size:20px; letter-spacing:.25em;
+          color:#e63946; border:4px solid #e63946; padding:6px 16px; border-radius:6px;
+        ">STAMPED</span>
+      </div>
+
+      <div style="text-align:center; margin-top:14px; font-family:'Bungee',sans-serif; font-size:8px; letter-spacing:.25em; color:rgba(10,12,31,.45);">
+        Pass non-transferable · The Valencia Kingdom · 2026
+      </div>
+    </div>
+  `;
+  return wrap;
+}
+
 async function downloadPass(button) {
   if (typeof html2canvas !== 'function') {
     showToast('⚠ Download library still loading — try again in a moment.');
     return;
   }
-  const target = document.querySelector('.boarding-pass');
-  if (!target) return;
   const originalLabel = button.textContent;
   button.disabled = true;
   button.textContent = 'CAPTURING…';
+
+  const snapshot = buildPassSnapshot(familyData);
+  document.body.appendChild(snapshot);
+
   try {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    const canvas = await html2canvas(target, {
-      backgroundColor: '#fff5e1',
+    // small RAF tick to ensure layout has settled before capture
+    await new Promise((r) => requestAnimationFrame(r));
+    const canvas = await html2canvas(snapshot, {
+      backgroundColor: null,
       scale: 2,
       useCORS: true,
-      ignoreElements: (el) => el.classList && el.classList.contains('bp-actions')
+      logging: false
     });
-    const slug = (familyData.name || 'pass').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+    const slug = (familyData.name || 'pass')
+      .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase()
+      .slice(0, 40) || 'pass';
     const a = document.createElement('a');
     a.download = `${slug}-pass.png`;
     a.href = canvas.toDataURL('image/png');
@@ -416,6 +548,7 @@ async function downloadPass(button) {
     console.error(err);
     showToast('⚠ Could not capture pass — try a different browser.');
   } finally {
+    snapshot.remove();
     button.disabled = false;
     button.textContent = originalLabel;
   }
