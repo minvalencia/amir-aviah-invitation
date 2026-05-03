@@ -658,56 +658,67 @@ if (nameInput && !familyData) {
   });
 }
 
-// ---------- Music (Web Audio synth, no audio files) ----------
+// ---------- Music (autoplaying MP3 with autoplay-policy fallback) ----------
+// Modern browsers block <audio>.play() until the user has interacted with the
+// page. Strategy: try to play on load (works on revisits with media-engagement,
+// or if the user opens the link via tap on mobile). If it rejects, queue a
+// one-shot listener that starts playback on the FIRST interaction of any
+// flavor (click/touch/scroll/keydown). Persist the mute preference so users
+// who silenced it on a prior visit aren't ambushed by sound on refresh.
 const musicBtn = $('#music-toggle');
-let audioCtx = null;
-let musicTimer = null;
-let isPlaying = false;
+const audio = new Audio('/assets/music.mp3');
+audio.loop = true;
+audio.preload = 'auto';
+audio.volume = 0.45;
 
-const NOTES = {
-  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392,
-  A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99
-};
-// Cheerful 16-step jingle (royalty-free, original)
-const MELODY = [
-  ['C5', 0.25], ['E5', 0.25], ['G5', 0.5],  ['E5', 0.25], ['G5', 0.25], ['C5', 0.5],
-  ['D5', 0.25], ['E5', 0.25], ['G5', 0.5],  ['F4', 0.25], ['A4', 0.25], ['C5', 0.5]
-];
+const MUTE_KEY = 'kingdom:music-muted';
+let userMuted = localStorage.getItem(MUTE_KEY) === '1';
 
-function playNote(freq, duration, when) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0, when);
-  gain.gain.linearRampToValueAtTime(0.16, when + 0.02);
-  gain.gain.linearRampToValueAtTime(0,    when + duration);
-  osc.connect(gain).connect(audioCtx.destination);
-  osc.start(when);
-  osc.stop(when + duration);
+function reflectMuteState() {
+  musicBtn.classList.toggle('muted', userMuted || audio.paused);
 }
-function startMusic() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  function loop() {
-    let t = audioCtx.currentTime;
-    MELODY.forEach(([note, dur]) => {
-      playNote(NOTES[note], dur * 0.95, t);
-      t += dur;
-    });
-    musicTimer = setTimeout(loop, MELODY.reduce((s, [, d]) => s + d, 0) * 1000 + 500);
+
+async function tryPlay() {
+  if (userMuted) { reflectMuteState(); return; }
+  try {
+    await audio.play();
+    reflectMuteState();
+  } catch {
+    // Autoplay blocked — wait for the first user gesture, then start.
+    const start = async () => {
+      window.removeEventListener('pointerdown', start);
+      window.removeEventListener('keydown', start);
+      window.removeEventListener('scroll', start);
+      window.removeEventListener('touchstart', start);
+      if (userMuted) return;
+      try { await audio.play(); reflectMuteState(); } catch {}
+    };
+    window.addEventListener('pointerdown', start, { once: true, passive: true });
+    window.addEventListener('keydown',     start, { once: true });
+    window.addEventListener('scroll',      start, { once: true, passive: true });
+    window.addEventListener('touchstart',  start, { once: true, passive: true });
   }
-  loop();
-  isPlaying = true;
-  musicBtn.classList.remove('muted');
 }
-function stopMusic() {
-  if (musicTimer) clearTimeout(musicTimer);
-  if (audioCtx) audioCtx.suspend();
-  isPlaying = false;
-  musicBtn.classList.add('muted');
-}
-musicBtn.addEventListener('click', () => isPlaying ? stopMusic() : startMusic());
+
+musicBtn.addEventListener('click', async () => {
+  if (audio.paused) {
+    userMuted = false;
+    localStorage.setItem(MUTE_KEY, '0');
+    try { await audio.play(); } catch {}
+  } else {
+    userMuted = true;
+    localStorage.setItem(MUTE_KEY, '1');
+    audio.pause();
+  }
+  reflectMuteState();
+});
+
+audio.addEventListener('play',  reflectMuteState);
+audio.addEventListener('pause', reflectMuteState);
+audio.addEventListener('ended', reflectMuteState); // belt-and-braces; loop should prevent this
+
+reflectMuteState();
+tryPlay();
 
 // ---------- 3D tilt-on-hover (cards, pins, boarding pass) ----------
 // Track mouse over each tiltable element; rotate it in 3D toward the cursor
