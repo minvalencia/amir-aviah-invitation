@@ -191,22 +191,31 @@ const familyDataEl = document.getElementById('family-data');
 const familyData = familyDataEl ? JSON.parse(familyDataEl.textContent) : null;
 const token = familyData ? location.pathname.split('/i/')[1] : null;
 
-const countPillsEl  = $('#count-pills');
-const attendeeListEl = $('#attendee-list');
-const slotsLineEl   = document.querySelector('[data-bp-slots-line]');
-const bpTitleEl     = document.querySelector('[data-bp-title]');
-const submitBtn     = form ? form.querySelector('.bp-submit') : null;
+const adultSection = $('#adult-section');
+const kidSection   = $('#kid-section');
+const adultPillsEl = $('#adult-pills');
+const kidPillsEl   = $('#kid-pills');
+const adultListEl  = $('#adult-list');
+const kidListEl    = $('#kid-list');
+const slotsLineEl  = document.querySelector('[data-bp-slots-line]');
+const bpTitleEl    = document.querySelector('[data-bp-title]');
+const submitBtn    = form ? form.querySelector('.bp-submit') : null;
 
-// Track current selection
-let currentAttendeeCount = 1;
+// Per-section count state
+let adultCount = 0;
+let kidCount   = 0;
 
 function setAttendingOnly(visible) {
   attendingOnly.forEach(el => el.classList.toggle('hidden', !visible));
 }
 
-function renderCountPills(maxSlots, selected) {
-  countPillsEl.innerHTML = '';
-  for (let i = 1; i <= maxSlots; i++) {
+// Render count pills 0..max into a container. Min is 0 because a section
+// with slots > 0 may still legitimately get 0 entrants (the OTHER section
+// supplies attendees). The cross-section "≥ 1 total" invariant is enforced
+// at submit.
+function renderCountPills(container, max, selected, onChange) {
+  container.innerHTML = '';
+  for (let i = 0; i <= max; i++) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'count-pill';
@@ -214,35 +223,59 @@ function renderCountPills(maxSlots, selected) {
     b.dataset.count = String(i);
     b.setAttribute('aria-pressed', String(i === selected));
     b.addEventListener('click', () => {
-      currentAttendeeCount = i;
-      countPillsEl.querySelectorAll('.count-pill').forEach(p =>
+      container.querySelectorAll('.count-pill').forEach(p =>
         p.setAttribute('aria-pressed', p.dataset.count === String(i) ? 'true' : 'false'));
-      renderAttendeeRows(currentAttendeeCount);
+      onChange(i);
     });
-    countPillsEl.appendChild(b);
+    container.appendChild(b);
   }
 }
 
-function renderAttendeeRows(n, prefill = []) {
-  attendeeListEl.innerHTML = '';
+function renderAttendeeRows(listEl, n, prefill, kind) {
+  listEl.innerHTML = '';
   const lastNameGuess = (familyData?.name || '').replace(/\s*Family\s*$/i, '').trim();
+  const placeholder = kind === 'kid'
+    ? (lastNameGuess ? `e.g. Kid ${lastNameGuess}` : 'Kid first + last name')
+    : (lastNameGuess ? `e.g. First ${lastNameGuess}` : 'First Last');
+  const labelWord = kind === 'kid' ? 'Kid' : 'Adult';
   for (let i = 0; i < n; i++) {
     const wrap = document.createElement('div');
     wrap.className = 'attendee-row';
     const num = document.createElement('span');
     num.className = 'attendee-num';
-    num.textContent = `Attendee ${i + 1}`;
+    num.textContent = `${labelWord} ${i + 1}`;
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.required = true;
     inp.maxLength = 120;
-    inp.placeholder = lastNameGuess ? `e.g. First ${lastNameGuess}` : 'First Last';
+    inp.placeholder = placeholder;
     inp.dataset.attendee = String(i);
     if (prefill[i]?.name) inp.value = prefill[i].name;
     wrap.appendChild(num);
     wrap.appendChild(inp);
-    attendeeListEl.appendChild(wrap);
+    listEl.appendChild(wrap);
   }
+}
+
+function renderAdults(selected, prefill) {
+  adultCount = selected;
+  renderCountPills(adultPillsEl, familyData.adult_slots, selected, (n) => {
+    adultCount = n;
+    renderAttendeeRows(adultListEl, n, [], 'adult');
+  });
+  renderAttendeeRows(adultListEl, selected, prefill || [], 'adult');
+}
+function renderKids(selected, prefill) {
+  kidCount = selected;
+  renderCountPills(kidPillsEl, familyData.kid_slots, selected, (n) => {
+    kidCount = n;
+    renderAttendeeRows(kidListEl, n, [], 'kid');
+  });
+  renderAttendeeRows(kidListEl, selected, prefill || [], 'kid');
+}
+function applySectionVisibility() {
+  adultSection.classList.toggle('hidden', familyData.adult_slots === 0);
+  kidSection.classList.toggle('hidden',   familyData.kid_slots === 0);
 }
 
 function setEditMode(isEdit, lastUpdatedISO) {
@@ -351,7 +384,6 @@ function showFormView() {
   const isEdit = familyData.attending !== null;
   setEditMode(isEdit, familyData.updated_at || familyData.claimed_at);
 
-  // Pre-select the prior choice (or leave both unset on first claim).
   const yesRadio = form.querySelector('input[name="attending"][value="yes"]');
   const noRadio  = form.querySelector('input[name="attending"][value="no"]');
   yesRadio.checked = familyData.attending === 'yes';
@@ -361,15 +393,21 @@ function showFormView() {
     setAttendingOnly(false);
   } else {
     setAttendingOnly(true);
-    const initialCount = isEdit && familyData.attending === 'yes'
-      ? familyData.attendee_count
-      : familyData.max_slots;
-    currentAttendeeCount = initialCount;
-    renderCountPills(familyData.max_slots, initialCount);
-    renderAttendeeRows(initialCount, familyData.attendees || []);
+    applySectionVisibility();
+
+    const priorAdults = (familyData.attendees || []).filter(a => a.kind === 'adult');
+    const priorKids   = (familyData.attendees || []).filter(a => a.kind === 'kid');
+
+    // First-claim default: pre-fill each section to its full slot count so
+    // the most common case (everyone coming) is one click away. On edit,
+    // restore the prior selection instead.
+    const initialAdults = isEdit ? priorAdults.length : familyData.adult_slots;
+    const initialKids   = isEdit ? priorKids.length   : familyData.kid_slots;
+
+    renderAdults(initialAdults, priorAdults);
+    renderKids(initialKids,     priorKids);
   }
 
-  // Pre-fill message
   const msgEl = form.querySelector('textarea[name="message"]');
   msgEl.value = familyData.message || '';
 
@@ -559,7 +597,14 @@ if (familyData && form) {
   // gate-family mode: bind form to this family.
   passHolderEl.textContent = familyData.name;
   if (slotsLineEl) {
-    slotsLineEl.textContent = `Up to ${familyData.max_slots} attendees on this invitation.`;
+    const a = familyData.adult_slots, k = familyData.kid_slots;
+    if (a > 0 && k > 0) {
+      slotsLineEl.textContent = `Up to ${a} adult${a === 1 ? '' : 's'} and ${k} kid${k === 1 ? '' : 's'} on this invitation.`;
+    } else if (a > 0) {
+      slotsLineEl.textContent = `Up to ${a} adult${a === 1 ? '' : 's'} on this invitation.`;
+    } else {
+      slotsLineEl.textContent = `Up to ${k} kid${k === 1 ? '' : 's'} on this invitation.`;
+    }
   }
 
   // attending toggle (form mode only)
@@ -569,10 +614,13 @@ if (familyData && form) {
       setAttendingOnly(false);
     } else {
       setAttendingOnly(true);
-      if (countPillsEl.children.length === 0) {
-        renderCountPills(familyData.max_slots, familyData.max_slots);
-        currentAttendeeCount = familyData.max_slots;
-        renderAttendeeRows(currentAttendeeCount);
+      applySectionVisibility();
+      // First time the YES section becomes visible after the user picked NO
+      // (or never picked anything), pre-fill to the slot maxes if both
+      // pill containers are still empty.
+      if (adultPillsEl.children.length === 0 && kidPillsEl.children.length === 0) {
+        renderAdults(familyData.adult_slots, []);
+        renderKids(familyData.kid_slots,     []);
       }
     }
   });
@@ -584,27 +632,34 @@ if (familyData && form) {
     const originalLabel = submitBtn.querySelector('span').textContent;
     submitBtn.querySelector('span').textContent = 'STAMPING…';
 
+    const restore = () => {
+      submitBtn.disabled = false;
+      submitBtn.querySelector('span').textContent = originalLabel;
+    };
+
     const attending = form.querySelector('input[name="attending"]:checked')?.value;
     if (!attending) {
       showToast('⚠  Please choose YES or NO.');
-      submitBtn.disabled = false;
-      submitBtn.querySelector('span').textContent = originalLabel;
-      return;
+      return restore();
     }
 
     let body = { attending };
     if (attending === 'yes') {
-      const inputs = attendeeListEl.querySelectorAll('input');
-      const attendees = Array.from(inputs).map(i => ({ name: i.value.trim() }));
-      const blanks = attendees.filter(a => !a.name);
-      if (blanks.length) {
-        showToast('⚠  Please fill in every attendee name.');
-        submitBtn.disabled = false;
-        submitBtn.querySelector('span').textContent = originalLabel;
-        return;
+      const collect = (listEl) =>
+        Array.from(listEl.querySelectorAll('input')).map(i => ({ name: i.value.trim() }));
+      const adults = collect(adultListEl);
+      const kids   = collect(kidListEl);
+
+      if (adults.length + kids.length < 1) {
+        showToast('⚠  Please add at least one attendee.');
+        return restore();
       }
-      body.attendee_count = currentAttendeeCount;
-      body.attendees = attendees;
+      if (adults.some(a => !a.name) || kids.some(a => !a.name)) {
+        showToast('⚠  Please fill in every attendee name.');
+        return restore();
+      }
+      body.adults = adults;
+      body.kids   = kids;
     }
     const messageVal = form.querySelector('textarea[name="message"]').value.trim();
     if (messageVal) body.message = messageVal;
@@ -632,8 +687,7 @@ if (familyData && form) {
       successBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (err) {
       showToast('⚠  ' + err.message);
-      submitBtn.disabled = false;
-      submitBtn.querySelector('span').textContent = originalLabel;
+      restore();
     }
   });
 
