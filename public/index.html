@@ -27,7 +27,7 @@
   }
   </script>
 </head>
-<body>
+<body data-landing-mode="<!--LANDING_MODE-->">
 
   <!-- ============== Persistent 3D backdrop ============== -->
   <canvas id="bg-canvas" aria-hidden="true"></canvas>
@@ -323,7 +323,9 @@
         <div class="bp-header-row">
           <div>
             <span class="bp-mini">Boarding Pass</span>
-            <h3 class="bp-title">Will you join us?</h3>
+            <h3 class="bp-title" data-bp-title>Will you join us?</h3>
+            <p class="bp-family-name" data-bp-family-name><!--FAMILY_NAME--></p>
+            <p class="bp-slots-line" data-bp-slots-line></p>
           </div>
           <span class="bp-flight">FLIGHT&nbsp;MM26</span>
         </div>
@@ -407,6 +409,7 @@
   <!-- ============== Achievement toast (gamification) ============== -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <!--FAMILY_DATA_JSON-->
   <script type="module" src="/js/scene.js"></script>
   <script src="/js/main.js"></script>
 </body>

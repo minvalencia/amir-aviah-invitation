@@ -83,6 +83,75 @@ function generateToken() {
 // ---------- Middleware ----------
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ---------- Template loader (read once at startup) ----------
+const indexHtmlTemplate = fs.readFileSync(
+  path.join(__dirname, 'public', 'index.html'),
+  'utf8'
+);
+
+// HTML escape for marker substitution
+function htmlEscape(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// JSON-in-script-tag escape: only `</` matters (prevents tag breakout).
+function jsonScriptEscape(obj) {
+  return JSON.stringify(obj).replace(/</g, '\\u003c');
+}
+
+function renderInvitation({ landingMode, familyName, familyJSON }) {
+  let out = indexHtmlTemplate;
+  out = out.replace('<!--LANDING_MODE-->', htmlEscape(landingMode));
+  out = out.replace('<!--FAMILY_NAME-->', htmlEscape(familyName || ''));
+  if (familyJSON) {
+    out = out.replace(
+      '<!--FAMILY_DATA_JSON-->',
+      `<script id="family-data" type="application/json">${jsonScriptEscape(familyJSON)}</script>`
+    );
+  } else {
+    out = out.replace('<!--FAMILY_DATA_JSON-->', '');
+  }
+  return out;
+}
+
+// ---------- Public landing ----------
+app.get('/', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderInvitation({ landingMode: 'gate-link', familyName: '', familyJSON: null }));
+});
+
+// ---------- Public family invitation ----------
+app.get('/i/:token', (req, res) => {
+  const token = String(req.params.token || '');
+  res.set('Cache-Control', 'no-store');
+  res.set('Content-Type', 'text/html; charset=utf-8');
+
+  if (!/^[A-Za-z0-9]{12}$/.test(token)) {
+    return res.status(404).send(renderInvitation({
+      landingMode: 'gate-invalid', familyName: '', familyJSON: null
+    }));
+  }
+  const family = db.prepare('SELECT * FROM families WHERE token = ?').get(token);
+  if (!family) {
+    return res.status(404).send(renderInvitation({
+      landingMode: 'gate-invalid', familyName: '', familyJSON: null
+    }));
+  }
+  const attendees = db.prepare(
+    'SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position'
+  ).all(family.id);
+  const familyJSON = familyToJSON(family, attendees);
+  res.send(renderInvitation({
+    landingMode: 'gate-family',
+    familyName: family.name,
+    familyJSON
+  }));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Public endpoints ----------
