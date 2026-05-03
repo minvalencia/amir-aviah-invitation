@@ -658,73 +658,101 @@ if (nameInput && !familyData) {
   });
 }
 
-// ---------- Music (autoplaying MP3 with autoplay-policy fallback) ----------
-// Modern browsers block <audio>.play() until the user has interacted with the
-// page. Strategy: try to play on load (works on revisits with media-engagement,
-// or if the user opens the link via tap on mobile). If it rejects, queue a
-// one-shot listener that starts playback on the FIRST interaction of any
-// flavor (click/touch/scroll/keydown). Persist the mute preference so users
-// who silenced it on a prior visit aren't ambushed by sound on refresh.
+// ---------- Music (muted-autoplay + first-gesture unmute) ----------
+// The autoplay-with-sound policy in modern browsers blocks audible playback
+// without user activation. The reliable workaround:
+//   1. Set audio.muted = true and call play() — browsers ALLOW muted autoplay,
+//      so the soundtrack is actually decoding/playing from page load.
+//   2. On the first sign of presence (mouse move, scroll, click, key, touch),
+//      flip muted = false. Audio becomes audible instantly with no replay
+//      glitch because it was already running.
+//   3. mousemove + scroll are not "user-activation" events but they trigger
+//      reliable unmute in practice — and we also bind real activation events
+//      (pointerdown/touchstart/keydown) so click-only browsers still work.
 const musicBtn = $('#music-toggle');
 const audio = new Audio('/assets/music.mp3');
 audio.loop = true;
 audio.preload = 'auto';
 audio.volume = 0.45;
+audio.muted = true; // crucial — lets the play() call below succeed cold.
 
 const MUTE_KEY = 'kingdom:music-muted';
 let userMuted = localStorage.getItem(MUTE_KEY) === '1';
 
 function reflectMuteState() {
-  musicBtn.classList.toggle('muted', userMuted || audio.paused);
+  // Visual mute state covers (a) user explicitly muted, (b) audio paused,
+  // and (c) the silent-autoplay phase before unmute.
+  const visualMuted = userMuted || audio.paused || audio.muted;
+  musicBtn.classList.toggle('muted', visualMuted);
 }
 
-// Brief banner shown only when autoplay is blocked, telling visitors that the
-// soundtrack is waiting for a tap. Hides itself on first interaction and is
-// belt-and-braces auto-dismissed after 12s regardless.
+// Show a small banner on cold loads guiding the visitor that the soundtrack
+// will begin the moment they interact. Disappears on first gesture.
 function showMusicHint() {
-  if (document.querySelector('.music-hint')) return;
+  if (document.querySelector('.music-hint')) return null;
   const hint = document.createElement('div');
   hint.className = 'music-hint';
-  hint.innerHTML = '<span class="mh-note">♪</span><span class="mh-text">Tap anywhere to enter the kingdom</span><span class="mh-spark">✨</span>';
+  hint.innerHTML = '<span class="mh-note">♪</span><span class="mh-text">Move or tap to begin the music</span><span class="mh-spark">✨</span>';
   document.body.appendChild(hint);
-  // Trigger the entrance transition next frame so the rule actually animates.
   requestAnimationFrame(() => hint.classList.add('show'));
   const dismiss = () => {
     hint.classList.remove('show');
     setTimeout(() => hint.remove(), 400);
   };
-  setTimeout(dismiss, 12000);
+  setTimeout(dismiss, 10000);
   return dismiss;
 }
 
-async function tryPlay() {
-  if (userMuted) { reflectMuteState(); return; }
-  try {
-    await audio.play();
+// Wire up first-gesture → unmute. Listens broadly so anything the visitor
+// does — moving the mouse, scrolling, tapping — flips audio on.
+function armUnmuteOnFirstGesture() {
+  if (userMuted) return null;
+  let dismissHint = null;
+  // Show the hint after a short delay so it doesn't flash for users who move
+  // their mouse immediately on page load.
+  const hintTimer = setTimeout(() => { dismissHint = showMusicHint(); }, 800);
+
+  const events = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll'];
+  const unmute = async () => {
+    events.forEach(t => window.removeEventListener(t, unmute));
+    clearTimeout(hintTimer);
+    if (dismissHint) dismissHint();
+    if (userMuted) return;
+    audio.muted = false;
+    // If the muted autoplay was somehow rejected, kick it off now (we now
+    // have user activation).
+    if (audio.paused) {
+      try { await audio.play(); } catch {}
+    }
     reflectMuteState();
-  } catch {
-    // Autoplay blocked — flash the hint, then wait for the first user gesture.
-    const dismissHint = showMusicHint();
-    const start = async () => {
-      window.removeEventListener('pointerdown', start);
-      window.removeEventListener('keydown', start);
-      window.removeEventListener('scroll', start);
-      window.removeEventListener('touchstart', start);
-      if (dismissHint) dismissHint();
-      if (userMuted) return;
-      try { await audio.play(); reflectMuteState(); } catch {}
-    };
-    window.addEventListener('pointerdown', start, { once: true, passive: true });
-    window.addEventListener('keydown',     start, { once: true });
-    window.addEventListener('scroll',      start, { once: true, passive: true });
-    window.addEventListener('touchstart',  start, { once: true, passive: true });
+  };
+  events.forEach(t => window.addEventListener(t, unmute, { once: true, passive: true }));
+  return unmute;
+}
+
+async function startMutedAutoplay() {
+  if (userMuted) {
+    audio.muted = true;
+    audio.pause();
+    reflectMuteState();
+    return;
   }
+  try {
+    await audio.play(); // muted, so should succeed even on a cold visit.
+  } catch {
+    // Pathological: even muted autoplay was blocked. The first-gesture
+    // listener below will still recover us — armUnmuteOnFirstGesture's
+    // unmute() retries play() if paused.
+  }
+  reflectMuteState();
+  armUnmuteOnFirstGesture();
 }
 
 musicBtn.addEventListener('click', async () => {
-  if (audio.paused) {
+  if (audio.paused || audio.muted) {
     userMuted = false;
     localStorage.setItem(MUTE_KEY, '0');
+    audio.muted = false;
     try { await audio.play(); } catch {}
   } else {
     userMuted = true;
@@ -736,10 +764,10 @@ musicBtn.addEventListener('click', async () => {
 
 audio.addEventListener('play',  reflectMuteState);
 audio.addEventListener('pause', reflectMuteState);
-audio.addEventListener('ended', reflectMuteState); // belt-and-braces; loop should prevent this
+audio.addEventListener('volumechange', reflectMuteState);
 
 reflectMuteState();
-tryPlay();
+startMutedAutoplay();
 
 // ---------- 3D tilt-on-hover (cards, pins, boarding pass) ----------
 // Track mouse over each tiltable element; rotate it in 3D toward the cursor
