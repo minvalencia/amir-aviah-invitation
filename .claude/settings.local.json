@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PORT=3344 ADMIN_USER=u ADMIN_PASS=p ADMIN_PATH=adm node *)",
+      "Bash(curl -s -o /dev/null -w \"GET / -> %{http_code}\\\\n\" http://localhost:3344/)",
+      "Bash(curl -s -o /dev/null -w \"GET /js/main.js -> %{http_code}\\\\n\" http://localhost:3344/js/main.js)",
+      "Bash(curl -s -o /dev/null -w \"GET /js/scene.js -> %{http_code}\\\\n\" http://localhost:3344/js/scene.js)",
+      "Bash(curl -s -o /dev/null -w \"GET /css/style.css -> %{http_code}\\\\n\" http://localhost:3344/css/style.css)",
+      "Bash(curl -s -o /dev/null -w \"GET /images/placeholder-boy.svg -> %{http_code}\\\\n\" http://localhost:3344/images/placeholder-boy.svg)",
+      "Bash(curl *)",
+      "Bash(kill %1)",
+      "Skill(schedule)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //IM node.exe)",
+      "Bash(git -C D:/Projects/invitation status)",
+      "Bash(git init *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(PORT=3344 ADMIN_USER=u ADMIN_PASS=p ADMIN_PATH=adm node server.js)",
+      "Bash(node -e \"const db=require\\('better-sqlite3'\\)\\('./data/rsvps.db'\\); console.log\\(db.prepare\\(\\\\\"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name\\\\\"\\).all\\(\\)\\)\")",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(node *)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(wait)",
+      "Bash(rm -f data/rsvps.db)",
+      "Bash(PORT=3345 ADMIN_USER=u ADMIN_PASS=p ADMIN_PATH=adm node server.js)"
+    ]
+  }
+}

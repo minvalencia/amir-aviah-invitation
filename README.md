@@ -249,15 +249,4 @@ docker run -p 3000:3000 invitation
 - **RSVP form doesn't submit**: open browser DevTools → Network tab → look for the failed `/api/rsvp` request and check the error.
 
 ---
-For your son (save result as kid-1.png):
-
-  ▎ Restyle this photo as a 3D Pixar-style portrait of the same child for a Mickey Mouse–themed birthday invitation. Keep his face, expression, and proportions recognisable. Dress him in red shorts with two big white front
-  ▎ buttons, a black mickey-ears headband, white gloves, and yellow shoes. Place him against a cream-and-red polka-dot studio backdrop with soft warm lighting, sparkles, and a hint of festive balloons. 3:4 vertical portrait,
-  ▎  full upper body in frame, polished and cinematic, transparent or solid background — no extra characters, no text.
-
-  For your daughter (save as kid-2.png):
-
-  ▎ Restyle this photo as a 3D Pixar-style portrait of the same child for a Minnie Mouse–themed birthday invitation. Keep her face, expression, and proportions recognisable. Dress her in a red-and-white polka-dot dress, an
-  ▎ oversized pink polka-dot bow on her head, white gloves, and yellow shoes. Place her against a cream-and-pink polka-dot studio backdrop with soft warm lighting, sparkles, and a hint of festive balloons. 3:4 vertical
-  ▎ portrait, full upper body in frame, polished and cinematic, transparent or solid background — no extra characters, no text.
 Made with ❤️ for two very special kids.

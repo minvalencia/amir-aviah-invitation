@@ -1113,6 +1113,13 @@ body[data-landing-mode="gate-invalid"] [data-bp-family-name] { display: none; }
 body[data-landing-mode="gate-invalid"] .gate-invalid-card { display: block; }
 body[data-landing-mode="gate-invalid"] [data-bp-title] { color: var(--mickey-red-deep); }
 
+/* Hide event-specific sections (Tour Itinerary, etc.) for non-invited visitors.
+   Venue/date is sensitive: only invited families see the Park Map and Countdown. */
+body[data-landing-mode="gate-link"] #s-map,
+body[data-landing-mode="gate-link"] #s-countdown,
+body[data-landing-mode="gate-invalid"] #s-map,
+body[data-landing-mode="gate-invalid"] #s-countdown { display: none; }
+
 /* gate-family — show family name above the form. */
 body[data-landing-mode="gate-family"] [data-bp-family-name] {
   display: block;
