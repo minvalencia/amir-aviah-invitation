@@ -686,66 +686,80 @@ function reflectMuteState() {
   musicBtn.classList.toggle('muted', visualMuted);
 }
 
-// Show a small banner on cold loads guiding the visitor that the soundtrack
-// will begin the moment they interact. Disappears on first gesture.
-function showMusicHint() {
-  if (document.querySelector('.music-hint')) return null;
-  const hint = document.createElement('div');
-  hint.className = 'music-hint';
-  hint.innerHTML = '<span class="mh-note">♪</span><span class="mh-text">Move or tap to begin the music</span><span class="mh-spark">✨</span>';
-  document.body.appendChild(hint);
-  requestAnimationFrame(() => hint.classList.add('show'));
-  const dismiss = () => {
-    hint.classList.remove('show');
-    setTimeout(() => hint.remove(), 400);
-  };
-  setTimeout(dismiss, 10000);
-  return dismiss;
-}
-
-// Wire up first-gesture → unmute. Listens broadly so anything the visitor
-// does — moving the mouse, scrolling, tapping — flips audio on.
-function armUnmuteOnFirstGesture() {
+// Full-screen entry modal — the user must tap "ENTER THE KINGDOM" to dismiss.
+// That tap is the user activation that unmutes audible playback. Skipped
+// entirely if the visitor previously chose to mute.
+function showEntryModal() {
   if (userMuted) return null;
-  let dismissHint = null;
-  // Show the hint after a short delay so it doesn't flash for users who move
-  // their mouse immediately on page load.
-  const hintTimer = setTimeout(() => { dismissHint = showMusicHint(); }, 800);
+  if (document.querySelector('.entry-modal')) return null;
 
-  const events = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll'];
-  const unmute = async () => {
-    events.forEach(t => window.removeEventListener(t, unmute));
-    clearTimeout(hintTimer);
-    if (dismissHint) dismissHint();
-    if (userMuted) return;
+  const modal = document.createElement('div');
+  modal.className = 'entry-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'em-title');
+  modal.innerHTML = `
+    <div class="em-card">
+      <div class="em-mickey" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="em-eyebrow">★ Welcome to ★</p>
+      <h2 class="em-title" id="em-title">The Valencia Kingdom</h2>
+      <p class="em-sub">A Mickey &amp; Minnie celebration awaits</p>
+      <button class="em-cta" type="button" autofocus>
+        <span>TAP TO ENTER</span>
+        <span class="em-cta-spark" aria-hidden="true">✨</span>
+      </button>
+      <p class="em-fine">music will begin when you enter</p>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  document.body.classList.add('modal-open');
+  requestAnimationFrame(() => modal.classList.add('show'));
+
+  const dismiss = async () => {
+    modal.classList.remove('show');
+    setTimeout(() => {
+      modal.remove();
+      document.body.classList.remove('modal-open');
+    }, 450);
     audio.muted = false;
-    // If the muted autoplay was somehow rejected, kick it off now (we now
-    // have user activation).
     if (audio.paused) {
       try { await audio.play(); } catch {}
     }
     reflectMuteState();
+    if (window.confettiBurst) window.confettiBurst();
   };
-  events.forEach(t => window.addEventListener(t, unmute, { once: true, passive: true }));
-  return unmute;
+
+  // Any click on the modal (including its CTA) dismisses + unmutes.
+  modal.addEventListener('click', dismiss);
+  // Esc as an accessibility fallback so visitors don't get trapped.
+  const onEsc = (e) => {
+    if (e.key === 'Escape') {
+      window.removeEventListener('keydown', onEsc);
+      dismiss();
+    }
+  };
+  window.addEventListener('keydown', onEsc);
+
+  // Auto-focus the CTA so screen readers announce it and keyboard users can hit Enter.
+  setTimeout(() => modal.querySelector('.em-cta')?.focus(), 50);
+
+  return dismiss;
 }
 
 async function startMutedAutoplay() {
   if (userMuted) {
+    // Visitor previously chose silence — honour it: stay paused, no modal.
     audio.muted = true;
     audio.pause();
     reflectMuteState();
     return;
   }
-  try {
-    await audio.play(); // muted, so should succeed even on a cold visit.
-  } catch {
-    // Pathological: even muted autoplay was blocked. The first-gesture
-    // listener below will still recover us — armUnmuteOnFirstGesture's
-    // unmute() retries play() if paused.
-  }
+  // Try muted autoplay so the audio is decoding/buffering by the time the
+  // visitor taps the modal — there's no perceptible delay when it unmutes.
+  try { await audio.play(); } catch { /* fall through to modal */ }
   reflectMuteState();
-  armUnmuteOnFirstGesture();
+  showEntryModal();
 }
 
 musicBtn.addEventListener('click', async () => {

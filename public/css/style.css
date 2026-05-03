@@ -1030,7 +1030,146 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------------------------------------------------------- */
-/*  Music hint (autoplay-blocked banner)                      */
+/*  Entry modal (tap-to-enter gate so the music can play)     */
+/* ---------------------------------------------------------- */
+body.modal-open { overflow: hidden; }
+
+.entry-modal {
+  position: fixed; inset: 0;
+  z-index: 100;
+  display: grid; place-items: center;
+  padding: 24px;
+  background: radial-gradient(ellipse at center, rgba(45, 27, 110, .85) 0%, rgba(7, 9, 31, .95) 75%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity .45s ease-out;
+  cursor: pointer;
+}
+.entry-modal.show { opacity: 1; }
+
+.em-card {
+  position: relative;
+  background: linear-gradient(165deg, var(--ivory) 0%, #ffe1c1 100%);
+  color: var(--ink);
+  border: 4px solid var(--gold);
+  border-radius: 24px;
+  padding: 38px 42px 32px;
+  max-width: 460px; width: 100%;
+  text-align: center;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, .7),
+    0 0 60px rgba(255, 217, 61, .3),
+    inset 0 0 0 2px rgba(0, 0, 0, .15);
+  transform: scale(.92) translateY(20px) rotate(-1deg);
+  transition: transform .55s cubic-bezier(.2, .9, .2, 1);
+}
+.entry-modal.show .em-card { transform: scale(1) translateY(0) rotate(0); }
+/* Decorative polka dots in the corners */
+.em-card::before, .em-card::after {
+  content: '';
+  position: absolute;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--mickey-red);
+  box-shadow: 0 0 0 4px var(--ivory);
+}
+.em-card::before { top: -16px; left: -16px; }
+.em-card::after  { bottom: -16px; right: -16px; }
+
+.em-mickey {
+  position: relative;
+  width: 70px; height: 54px;
+  margin: 0 auto 18px;
+}
+.em-mickey span {
+  position: absolute;
+  background: var(--ink);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
+}
+.em-mickey span:nth-child(1) { width: 38px; height: 38px; bottom: 0; left: 50%; transform: translateX(-50%); }
+.em-mickey span:nth-child(2) { width: 24px; height: 24px; top: 0; left: 0; }
+.em-mickey span:nth-child(3) { width: 24px; height: 24px; top: 0; right: 0; }
+
+.em-eyebrow {
+  font-family: 'Bungee', sans-serif;
+  font-size: 11px;
+  letter-spacing: .35em;
+  color: var(--gold);
+  background: var(--ink);
+  padding: 6px 16px;
+  border-radius: 99px;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+.em-title {
+  font-family: 'Lilita One', cursive;
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  line-height: 1.05;
+  color: var(--ink);
+  margin-bottom: 8px;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, .6);
+}
+.em-sub {
+  font-family: 'Caveat', cursive;
+  font-size: 1.45rem;
+  color: var(--mickey-red-deep);
+  margin-bottom: 26px;
+}
+.em-cta {
+  background: var(--mickey-red);
+  color: var(--ivory);
+  font-family: 'Bungee', sans-serif;
+  font-size: 15px;
+  letter-spacing: .18em;
+  padding: 16px 30px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 0 var(--mickey-red-deep), 0 16px 32px rgba(0, 0, 0, .4);
+  transition: transform .15s, box-shadow .15s;
+  border: 0;
+  animation: ctaBob 2.4s ease-in-out infinite;
+}
+.em-cta:hover  { transform: translateY(-2px); box-shadow: 0 10px 0 var(--mickey-red-deep), 0 18px 34px rgba(0, 0, 0, .5); }
+.em-cta:focus-visible {
+  outline: 0;
+  box-shadow: 0 8px 0 var(--mickey-red-deep), 0 16px 32px rgba(0, 0, 0, .4),
+              0 0 0 4px var(--gold);
+}
+.em-cta:active { transform: translateY(2px); box-shadow: 0 6px 0 var(--mickey-red-deep), 0 10px 18px rgba(0, 0, 0, .4); }
+.em-cta-spark {
+  font-size: 18px;
+  color: var(--gold);
+  animation: ctaSpark 1.6s ease-in-out infinite;
+}
+@keyframes ctaBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@keyframes ctaSpark {
+  0%, 100% { transform: rotate(0) scale(1); opacity: 1; }
+  50%      { transform: rotate(20deg) scale(1.25); opacity: .8; }
+}
+.em-fine {
+  margin-top: 16px;
+  font-family: 'Bungee', sans-serif;
+  font-size: 9px;
+  letter-spacing: .2em;
+  color: var(--ink-soft);
+  opacity: .65;
+}
+
+@media (max-width: 480px) {
+  .em-card { padding: 30px 26px 26px; }
+  .em-cta { font-size: 14px; padding: 14px 22px; }
+}
+
+/* ---------------------------------------------------------- */
+/*  Music hint (autoplay-blocked banner) — kept for fallback  */
 /* ---------------------------------------------------------- */
 .music-hint {
   position: fixed;
