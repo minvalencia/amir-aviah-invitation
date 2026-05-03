@@ -446,16 +446,18 @@ app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
     properties: { tabColor: { argb: 'FFE63946' } }
   });
   fam.columns = [
-    { header: '#',          key: 'id',         width: 6  },
-    { header: 'Family',     key: 'name',       width: 28 },
-    { header: 'Status',     key: 'status',     width: 12 },
-    { header: 'Slots Used', key: 'used',       width: 11 },
-    { header: 'Slots Max',  key: 'max',        width: 11 },
-    { header: 'Message',    key: 'message',    width: 36 },
-    { header: 'Created',    key: 'created_at', width: 22 },
-    { header: 'Claimed',    key: 'claimed_at', width: 22 },
-    { header: 'Updated',    key: 'updated_at', width: 22 },
-    { header: 'Share URL',  key: 'share_url',  width: 60 }
+    { header: '#',           key: 'id',          width: 6  },
+    { header: 'Family',      key: 'name',        width: 28 },
+    { header: 'Status',      key: 'status',      width: 12 },
+    { header: 'Adults Used', key: 'adults_used', width: 12 },
+    { header: 'Adults Max',  key: 'adults_max',  width: 12 },
+    { header: 'Kids Used',   key: 'kids_used',   width: 11 },
+    { header: 'Kids Max',    key: 'kids_max',    width: 11 },
+    { header: 'Message',     key: 'message',     width: 36 },
+    { header: 'Created',     key: 'created_at',  width: 22 },
+    { header: 'Claimed',     key: 'claimed_at',  width: 22 },
+    { header: 'Updated',     key: 'updated_at',  width: 22 },
+    { header: 'Share URL',   key: 'share_url',   width: 60 }
   ];
   fam.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
   fam.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE63946' } };
@@ -467,22 +469,29 @@ app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
     if (f.attending === 'no')  return 'No';
     return 'Pending';
   };
-  const usedFor = (f) => {
-    if (f.attending === 'yes') return f.attendee_count ?? 0;
-    if (f.attending === 'no')  return 0;
-    return ''; // Pending → empty cell
+  // "Used" cells: yes → integer (may be 0); no → 0; pending → blank.
+  const usedCellsFor = (f, attendees) => {
+    if (f.attending === null) return { adults_used: '', kids_used: '' };
+    if (f.attending === 'no') return { adults_used: 0,  kids_used: 0 };
+    const adults = attendees.filter(a => a.kind === 'adult').length;
+    const kids   = attendees.filter(a => a.kind === 'kid').length;
+    return { adults_used: adults, kids_used: kids };
   };
 
   // Convert SQLite TEXT timestamps to ISO-Z to match the JSON API surface.
   const isoOrEmpty = (s) => s ? s.replace(' ', 'T') + 'Z' : '';
 
   families.forEach(f => {
+    const attendees = attStmt.all(f.id);
+    const used = usedCellsFor(f, attendees);
     fam.addRow({
       id: f.id,
       name: f.name,
       status: statusFor(f),
-      used: usedFor(f),
-      max: f.max_slots,
+      adults_used: used.adults_used,
+      adults_max:  f.adult_slots,
+      kids_used:   used.kids_used,
+      kids_max:    f.kid_slots,
       message: f.message || '',
       created_at: isoOrEmpty(f.created_at),
       claimed_at: isoOrEmpty(f.claimed_at),
@@ -500,6 +509,7 @@ app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
     { header: 'Family',             key: 'family',      width: 28 },
     { header: 'Family Status',      key: 'status',      width: 14 },
     { header: 'Attendee Position',  key: 'position',    width: 18 },
+    { header: 'Kind',               key: 'kind',        width: 8  },
     { header: 'Attendee Name',      key: 'name',        width: 28 }
   ];
   att.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
@@ -515,6 +525,7 @@ app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
         family: f.name,
         status: statusFor(f),
         position: r.position + 1, // 1-based for humans in the spreadsheet
+        kind: r.kind === 'kid' ? 'Kid' : 'Adult',
         name: r.name
       });
     });
