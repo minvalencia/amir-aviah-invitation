@@ -60,17 +60,42 @@ CREATE TABLE IF NOT EXISTS attendees (
 
 ### Migration of legacy rows
 
-The schema-sync block runs on every boot. After `CREATE TABLE IF NOT EXISTS`:
+The schema-sync block runs on every boot. After `CREATE TABLE IF NOT EXISTS` (which is a no-op on a legacy DB), inspect `pragma_table_info('families')`:
 
-1. Inspect `pragma_table_info('families')` — if `max_slots` exists and `adult_slots` does not, run:
-   - `ALTER TABLE families ADD COLUMN adult_slots INTEGER NOT NULL DEFAULT 0;`
-   - `ALTER TABLE families ADD COLUMN kid_slots INTEGER NOT NULL DEFAULT 0;`
-   - `UPDATE families SET adult_slots = max_slots, kid_slots = 0;`
-   - Leave `max_slots` in place (SQLite `DROP COLUMN` requires 3.35+; the unused column is harmless and the next clean redeploy on Render's ephemeral disk will re-create the table without it).
-2. Inspect `pragma_table_info('attendees')` — if `kind` does not exist:
-   - `ALTER TABLE attendees ADD COLUMN kind TEXT NOT NULL DEFAULT 'adult';`
+**If `max_slots` exists and `adult_slots` does not** — perform a full table rebuild (the standard SQLite migration pattern, the only way to leave behind a clean schema with `NOT NULL` columns and the new sum-CHECK):
 
-The CHECK constraints in `CREATE TABLE` are not enforced retroactively on `ALTER` — acceptable since migration values are known-good (`max_slots ≤ 20`, `kid_slots = 0`).
+```sql
+BEGIN;
+CREATE TABLE families_new (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  adult_slots INTEGER NOT NULL CHECK (adult_slots BETWEEN 0 AND 20),
+  kid_slots INTEGER NOT NULL CHECK (kid_slots BETWEEN 0 AND 20),
+  attending TEXT CHECK (attending IN ('yes','no')),
+  attendee_count INTEGER CHECK (attendee_count >= 0),
+  message TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  claimed_at DATETIME,
+  updated_at DATETIME,
+  CHECK (adult_slots + kid_slots BETWEEN 1 AND 20)
+);
+INSERT INTO families_new (id, token, name, adult_slots, kid_slots, attending, attendee_count, message, created_at, claimed_at, updated_at)
+  SELECT id, token, name, max_slots, 0, attending, attendee_count, message, created_at, claimed_at, updated_at FROM families;
+DROP TABLE families;
+ALTER TABLE families_new RENAME TO families;
+CREATE INDEX IF NOT EXISTS idx_families_token ON families(token);
+COMMIT;
+```
+
+This eliminates the orphaned `max_slots` column entirely, so the admin `INSERT` only needs `(token, name, adult_slots, kid_slots)`.
+
+**For `attendees`** — inspect `pragma_table_info('attendees')`. If `kind` does not exist:
+- `ALTER TABLE attendees ADD COLUMN kind TEXT NOT NULL DEFAULT 'adult';`
+
+This is safe: `ALTER TABLE ADD COLUMN` works for `attendees` because there's no incompatible existing constraint. The `idx_attendees_family` index survives.
+
+The CHECK constraints in `CREATE TABLE families_new` are enforced on the `INSERT … SELECT` — acceptable since migration values are known-good (legacy `max_slots ∈ 1..20` ⇒ `adult_slots + kid_slots = max_slots ∈ 1..20`).
 
 ## API Changes
 
@@ -116,7 +141,7 @@ The CHECK constraints in `CREATE TABLE` are not enforced retroactively on `ALTER
 }
 ```
 
-`max_slots` is dropped from the JSON. Convenience derived counts (`adult_count`, `kid_count`) are computed from `attendees` either client-side or in `familyToJSON`; spec leaves this to implementer's discretion.
+`max_slots` is dropped from the JSON. Convenience derived counts `adult_count` and `kid_count` are computed in `familyToJSON` (server-side, single source of truth) so admin and guest UIs don't reimplement the math.
 
 ### `POST /<admin>/api/families`
 
@@ -137,7 +162,7 @@ Defaults: `adult_slots = 2, kid_slots = 2`. Client-side: alert if `adults + kids
 
 `Families · Yes · No · Pending · Adults · Kids`
 
-The two new tiles count attendees by kind across `attending === 'yes'` families only.
+The two new tiles count attendees by kind across `attending === 'yes'` families only. The existing `total_attendees` field is **removed** from the stats payload — the two new fields (`adult_count`, `kid_count`) replace it; admin no longer needs the sum tile, and any client that wants the total can add the two.
 
 ### Families table
 
@@ -152,16 +177,18 @@ Inside the **YES** branch, two stacked sections:
 
 ```
 ADULTS  (Up to N)        ← hidden if adult_slots === 0
-[ count pills 0..N ]
+[ count pills 0..N ]     ← min pill is 0 (was 1 in legacy form), max is the section's slot count
 [ name field ]
 [ name field ]
 …
 
 KIDS    (Up to M)        ← hidden if kid_slots === 0
-[ count pills 0..M ]
+[ count pills 0..M ]     ← same: min 0, max = kid_slots
 [ name field ]
 …
 ```
+
+The `0` pill is meaningful — it's how a guest expresses "we're bringing only adults" or "only the kids". Cross-section invariant: at least one of (`adults.length`, `kids.length`) must be ≥ 1.
 
 - "Slots line" copy:
   - both > 0: `"Up to N adults and M kids on this invitation."`
@@ -193,7 +220,10 @@ KIDS    (Up to M)        ← hidden if kid_slots === 0
 | `Slots Used` | `Adults Used`, `Kids Used` (two columns) |
 | `Slots Max`  | `Adults Max`, `Kids Max` (two columns) |
 
-For pending rows, "Used" cells are blank (matches current behavior).
+"Used" cell rules (apply to both `Adults Used` and `Kids Used` identically):
+- `attending === 'yes'` → integer (the kind's attendee count, may be 0).
+- `attending === 'no'`  → `0`.
+- Pending (`attending === null`) → blank cell.
 
 ### Attendees sheet — add `Kind` column
 
@@ -203,18 +233,19 @@ For pending rows, "Used" cells are blank (matches current behavior).
 
 ## Files Touched
 
-- `server.js` — schema, validation, JSON shape, admin create endpoint, Excel export.
+- `server.js` — schema (incl. table-rebuild migration), validation, JSON shape, admin create endpoint, Excel export.
 - `public/admin.html` — add-family form, stats grid (5 → 6 tiles).
 - `public/js/admin.js` — form submit, stats binding, table renderer (`slotsCell`, `renderDetail`).
 - `public/index.html` — duplicate the "count + name list" markup into adults/kids sections.
-- `public/js/main.js` — form rendering, validation, submit body, stamped pass, snapshot builder, slots-line copy.
+- `public/js/main.js` — form rendering, validation, submit body, stamped pass (in-page DOM AND `buildPassSnapshot` PNG snapshot, both colocated in this file), slots-line copy.
 - `CLAUDE.md` — update "Token model" / "Edit semantics" paragraphs that mention `max_slots` and `attendee_count`.
 
 ## Risks / Open Questions
 
-- **SQLite `DROP COLUMN`:** unavailable < 3.35. We deliberately leave `max_slots` orphaned rather than rebuild the table. On Render redeploys the DB is wiped anyway; only local dev sees this.
+- **Migration is a table rebuild,** not an `ALTER TABLE ADD COLUMN`. Reasoning: SQLite `DROP COLUMN` is unavailable < 3.35, so an additive migration would leave `max_slots NOT NULL` orphaned and break new admin INSERTs. The rebuild runs inside a `BEGIN…COMMIT`, copies all rows, and is idempotent on re-boot (gated by `pragma_table_info` check). On Render's ephemeral disk this almost never fires; on local dev it runs once per existing DB.
 - **The existing `attendee_count` column is now derived state.** Kept because the JSON API and Excel export reference it. Stays as a denormalised cache, written on every RSVP submit.
 - **Boarding-pass PNG layout** may overflow at the worst case (max 20 attendees in two sub-lists). Acceptable — same overflow risk exists today with one list of 20.
+- **Indexes** (`idx_families_token`, `idx_attendees_family`) are recreated by the schema-sync block via `CREATE INDEX IF NOT EXISTS`, including after the table rebuild.
 
 ## Out of Scope
 
