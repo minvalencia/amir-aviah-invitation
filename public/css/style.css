@@ -1198,6 +1198,13 @@ body[data-landing-mode="gate-family"] [data-bp-slots-line] {
   margin-bottom: 6px;
 }
 
+/* 3D tilt depth — give tiltable cards a perspective context so their
+   children render with z-depth when the parent rotates. */
+.star-card, .map-pin, .boarding-pass {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
 /* "Edit again" affordance shown after a successful submit */
 .edit-again-link {
   margin-top: 14px;

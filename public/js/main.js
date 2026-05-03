@@ -708,3 +708,47 @@ function stopMusic() {
   musicBtn.classList.add('muted');
 }
 musicBtn.addEventListener('click', () => isPlaying ? stopMusic() : startMusic());
+
+// ---------- 3D tilt-on-hover (cards, pins, boarding pass) ----------
+// Track mouse over each tiltable element; rotate it in 3D toward the cursor
+// for a "popping out of the page" effect. Combines with each element's
+// existing rest-tilt (e.g. star-card.boy = -3°) so nothing fights.
+function setupTilt(el) {
+  // Resolve the rest transform from the element's class so we can preserve it
+  // while the cursor is inside.
+  let rest = '';
+  if (el.classList.contains('star-card')) {
+    rest = el.classList.contains('boy') ? 'rotate(-3deg)' : 'rotate(3deg)';
+  } else if (el.classList.contains('map-pin')) {
+    const idx = Array.from(el.parentElement.children).indexOf(el);
+    // Pins are siblings of <svg.map-paths>; indexes 1, 2, 3 in that order.
+    rest = ['', 'rotate(-2deg)', 'rotate(1.5deg) translateY(-12px)', 'rotate(-1deg)'][idx] || '';
+  }
+
+  let raf = null;
+  el.addEventListener('pointermove', (e) => {
+    const r = el.getBoundingClientRect();
+    const dx = ((e.clientX - r.left) / r.width  - 0.5) * 2;
+    const dy = ((e.clientY - r.top)  / r.height - 0.5) * 2;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      el.style.transition = 'transform .08s linear';
+      el.style.transform =
+        `${rest} perspective(900px) rotateX(${(-dy * 9).toFixed(2)}deg) rotateY(${(dx * 9).toFixed(2)}deg) translateZ(16px) scale(1.02)`;
+    });
+  });
+  el.addEventListener('pointerleave', () => {
+    cancelAnimationFrame(raf);
+    el.style.transition = 'transform .35s cubic-bezier(.2,.9,.2,1)';
+    el.style.transform = '';
+  });
+}
+
+// Skip on touch-only devices — pointermove fires noisily on touch and the tilt
+// looks awkward without a hover state.
+const isTouchOnly = matchMedia('(hover: none)').matches;
+if (!isTouchOnly) {
+  ['.star-card', '.map-pin', '.boarding-pass'].forEach((sel) => {
+    document.querySelectorAll(sel).forEach(setupTilt);
+  });
+}

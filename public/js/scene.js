@@ -125,6 +125,106 @@ for (let i = 0; i < 9; i++) {
   balloons.push(b);
 }
 
+// ---------- 3D Castle ----------
+// A Magic-Kingdom-styled castle in the distance. Sits behind everything,
+// catches light from the rim point-lights, and slowly sways as the camera
+// approaches it on scroll. Built from primitives so no mesh/asset load.
+function createCastle() {
+  const g = new THREE.Group();
+  const stoneMat  = new THREE.MeshStandardMaterial({ color: 0x352873, roughness: 0.7, metalness: 0.05 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0x5b3aa8, roughness: 0.6, metalness: 0.1 });
+  const spireMat  = new THREE.MeshStandardMaterial({
+    color: 0xff5d8f, roughness: 0.4, metalness: 0.05,
+    emissive: 0xff5d8f, emissiveIntensity: 0.3
+  });
+  const goldMat   = new THREE.MeshStandardMaterial({
+    color: 0xffd93d, roughness: 0.4, metalness: 0.5,
+    emissive: 0xffd93d, emissiveIntensity: 0.45
+  });
+  const windowMat = new THREE.MeshBasicMaterial({ color: 0xffd93d });
+
+  // Wall base
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.4, 1.4), stoneMat);
+  wall.position.y = -1.6;
+  g.add(wall);
+
+  // Crenellated battlements along the wall top
+  for (let i = -3; i <= 3; i += 0.65) {
+    const batt = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 1.4), stoneMat);
+    batt.position.set(i, -0.85, 0);
+    g.add(batt);
+  }
+
+  // Central keep
+  const keep = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 4, 12), accentMat);
+  keep.position.y = 0.4;
+  g.add(keep);
+
+  // Main spire (signature pink)
+  const mainSpire = new THREE.Mesh(new THREE.ConeGeometry(1, 3.2, 12), spireMat);
+  mainSpire.position.y = 4.1;
+  g.add(mainSpire);
+
+  // Gold crown ball atop the main spire
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 14), goldMat);
+  crown.position.y = 5.85;
+  g.add(crown);
+
+  // Side towers (4)
+  [[-1.8, 0.4], [1.8, 0.4], [-2.7, -0.5], [2.7, -0.5]].forEach(([x, y]) => {
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 2.4, 8), accentMat);
+    tower.position.set(x, y, 0);
+    g.add(tower);
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.4, 8), goldMat);
+    spire.position.set(x, y + 1.9, 0);
+    g.add(spire);
+  });
+
+  // Glowing windows on the keep
+  [-0.4, 0.6, 1.6].forEach(y => {
+    [-0.25, 0.25].forEach(x => {
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.36), windowMat);
+      win.position.set(x, y, 0.92);
+      g.add(win);
+    });
+  });
+
+  // Gate glow (entrance)
+  const gate = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.4), goldMat);
+  gate.position.set(0, -1.45, 0.71);
+  g.add(gate);
+
+  // Flag pennants on each spire
+  [[-1.8, 2.7], [1.8, 2.7], [0, 5.95]].forEach(([x, y], i) => {
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.45, 6),
+      new THREE.MeshStandardMaterial({ color: 0xfff5e1 })
+    );
+    pole.position.set(x, y + 0.2, 0);
+    g.add(pole);
+    const flagColor = i === 2 ? 0xff5d8f : 0xffd93d;
+    const flag = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.5, 0.25),
+      new THREE.MeshBasicMaterial({ color: flagColor, side: THREE.DoubleSide })
+    );
+    flag.position.set(x + 0.25, y + 0.3, 0);
+    g.add(flag);
+  });
+
+  return g;
+}
+const castle = createCastle();
+castle.position.set(0, -3, -11);
+castle.scale.setScalar(1.15);
+scene.add(castle);
+
+// Spotlight on the castle so its details catch the eye when the camera nears
+const castleSpot = new THREE.SpotLight(0xffd9b3, 1.8, 40, Math.PI / 5, 0.4, 1);
+castleSpot.position.set(0, 8, 5);
+castleSpot.target = castle;
+scene.add(castleSpot);
+scene.add(castleSpot.target);
+
 // ---------- Star field (instanced points) ----------
 function makeStarField(count = 400, spread = 70, depth = -25) {
   const positions = new Float32Array(count * 3);
@@ -218,8 +318,83 @@ function emitSparkles(count, x = 0, y = 0, z = 5, spread = 4) {
 function confettiBurst() {
   emitSparkles(120, 0, -2, 6, 7);
 }
+
+// ---------- Fireworks ----------
+// A "burst" emits many sparkles outward from a 3D point, in a paired palette.
+// Reuses the same particle pool as the ambient sparkles.
+const FIREWORK_PALETTES = [
+  [[1.0, 0.85, 0.24], [1, 1, 1]],         // gold + white
+  [[1.0, 0.36, 0.56], [1, 0.55, 0.26]],   // pink + sunset
+  [[0.55, 0.75, 1],   [1, 1, 1]],         // sky blue + white
+  [[1.0, 0.30, 0.30], [1, 0.85, 0.24]],   // red + gold
+  [[0.7, 0.5, 1.0],   [1, 0.36, 0.56]]    // lilac + pink
+];
+function fireworkBurst(x, y, z) {
+  const palette = FIREWORK_PALETTES[Math.floor(Math.random() * FIREWORK_PALETTES.length)];
+  const count = 64;
+  for (let i = 0; i < count; i++) {
+    const idx = sparkleHead;
+    sparkleHead = (sparkleHead + 1) % SPARKLE_MAX;
+    sparklePositions[idx * 3]     = x;
+    sparklePositions[idx * 3 + 1] = y;
+    sparklePositions[idx * 3 + 2] = z;
+    // Spherical outward velocity
+    const theta = Math.random() * tau;
+    const phi   = (Math.random() - 0.5) * Math.PI;
+    const speed = rand(0.10, 0.22);
+    sparkleVel[idx * 3]     = Math.cos(theta) * Math.cos(phi) * speed;
+    sparkleVel[idx * 3 + 1] = Math.sin(phi) * speed + 0.025; // slight upward bias
+    sparkleVel[idx * 3 + 2] = Math.sin(theta) * Math.cos(phi) * speed;
+    const c = palette[i % palette.length];
+    sparkleColor[idx * 3]     = c[0];
+    sparkleColor[idx * 3 + 1] = c[1];
+    sparkleColor[idx * 3 + 2] = c[2];
+    sparkleSize[idx] = rand(0.32, 0.7);
+    sparkleLife[idx] = rand(70, 140);
+  }
+}
+
 window.confettiBurst = confettiBurst;
 window.emitSparkles  = emitSparkles;
+window.fireworkBurst = fireworkBurst;
+
+// ---------- Click anywhere → fireworks ----------
+// Listens on the document but skips clicks that land on interactive UI so we
+// don't fire a burst when the user is just trying to RSVP or click a button.
+const NON_FIREWORK_SEL =
+  'button, input, textarea, select, a, label, .magic-pass, .boarding-pass, .rsvp-success, .ticket, .map-pin, .star-card, .hidden-mickey';
+document.addEventListener('click', (e) => {
+  if (e.target.closest(NON_FIREWORK_SEL)) return;
+  // Convert viewport pos to a comfortable scene-space depth (z=4)
+  const x = ((e.clientX / window.innerWidth) - 0.5) * 18;
+  const y = -((e.clientY / window.innerHeight) - 0.5) * 11;
+  fireworkBurst(x, y, 4);
+});
+
+// ---------- Cursor sparkle trail ----------
+let lastCursorEmit = 0;
+window.addEventListener('pointermove', (e) => {
+  const now = performance.now();
+  if (now - lastCursorEmit < 55) return;
+  lastCursorEmit = now;
+  const x = ((e.clientX / window.innerWidth) - 0.5) * 18;
+  const y = -((e.clientY / window.innerHeight) - 0.5) * 11;
+  // One small sparkle that lingers near the cursor (pierce-through pool size = OK)
+  const idx = sparkleHead;
+  sparkleHead = (sparkleHead + 1) % SPARKLE_MAX;
+  sparklePositions[idx * 3]     = x;
+  sparklePositions[idx * 3 + 1] = y;
+  sparklePositions[idx * 3 + 2] = 4;
+  sparkleVel[idx * 3]     = rand(-0.01, 0.01);
+  sparkleVel[idx * 3 + 1] = rand(0.005, 0.025);
+  sparkleVel[idx * 3 + 2] = 0;
+  const c = SPARKLE_PALETTE[Math.floor(Math.random() * SPARKLE_PALETTE.length)];
+  sparkleColor[idx * 3]     = c[0];
+  sparkleColor[idx * 3 + 1] = c[1];
+  sparkleColor[idx * 3 + 2] = c[2];
+  sparkleSize[idx] = rand(0.18, 0.32);
+  sparkleLife[idx] = rand(40, 80);
+}, { passive: true });
 
 // ---------- Scroll progress (0..1) ----------
 let scrollProgress = 0;
@@ -272,10 +447,21 @@ const skyTopColors = [
 ];
 
 const clock = new THREE.Clock();
+let nextFirework = 3 + Math.random() * 4;  // first auto-burst seeds the show
 
 function animate() {
   const dt = clock.getDelta();
   const t = clock.getElapsedTime();
+
+  // ---- Auto-firework: random burst every 5–10 seconds ----
+  if (t > nextFirework) {
+    fireworkBurst(rand(-9, 9), rand(0.5, 5), rand(2, 6));
+    nextFirework = t + rand(5, 10);
+  }
+
+  // ---- Castle sway (gentle parallax of its own) ----
+  castle.rotation.y = Math.sin(t * 0.15) * 0.18;
+  castle.position.y = -3 + Math.sin(t * 0.22) * 0.15;
 
   // Camera dolly: gently move forward and slightly up as user scrolls
   const targetZ = 22 - scrollProgress * 14;       // 22 → 8
