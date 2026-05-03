@@ -187,50 +187,125 @@
       th:nth-child(4), td:nth-child(4),
       th:nth-child(8), td:nth-child(8) { display: none; }
     }
+/* Stat tile color overrides — 5 tiles now */
+.stat:nth-child(1) { border-color: var(--red); }
+.stat:nth-child(2) { border-color: #06A77D; }
+.stat:nth-child(3) { border-color: var(--red); }
+.stat:nth-child(4) { border-color: #B0B0B0; }
+.stat:nth-child(5) { border-color: var(--pink); }
+
+.add-family {
+  margin: 0 2rem 1.5rem;
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.4rem 1.6rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,.06);
+}
+.add-family h2 {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1.1rem;
+  margin-bottom: .8rem;
+}
+.add-family-row { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }
+.add-family-row label { display: flex; flex-direction: column; font-size: .82rem; color: #555; gap: .3rem; flex: 1; min-width: 160px; }
+.add-family-row input {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 1rem;
+  padding: .55rem .7rem;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+}
+.add-family-row input:focus { outline: 0; border-color: var(--red); }
+.add-family-row .create-btn {
+  background: var(--black); color: var(--cream);
+  border: 0; padding: .65rem 1.2rem;
+  border-radius: 8px; cursor: pointer;
+  font-family: 'Fredoka', sans-serif; font-weight: 600;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.add-family-row .create-btn:hover { background: #333; }
+.add-hint { margin-top: .5rem; font-size: .82rem; color: #777; }
+
+.badge.pending { background: #EEE; color: #666; }
+.badge.edited  { background: #FFF3CD; color: #8a6d00; margin-left: .4rem; font-size: .65rem; }
+
+.copy-btn {
+  background: var(--cream); border: 1px solid #ddd; border-radius: 6px;
+  padding: .25rem .65rem; font-size: .8rem; cursor: pointer;
+  font-family: 'Quicksand', sans-serif;
+}
+.copy-btn:hover { border-color: var(--red); color: var(--red); }
+.copy-btn.copied { background: #D4F4DD; border-color: #06A77D; color: #06A77D; }
+
+.attendees-sublist {
+  margin: .4rem 0 .2rem 1rem;
+  font-size: .85rem;
+  color: #555;
+}
+.attendees-sublist li { padding: .15rem 0; }
+.attendees-sublist .sub-message { font-style: italic; color: #777; margin-top: .3rem; }
+
+.expand-toggle {
+  background: transparent; border: 0; cursor: pointer; color: #999;
+  font-size: 1rem; padding: 0 .3rem; margin-right: .3rem;
+}
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 30px);
+  background: var(--black); color: var(--cream);
+  font-family: 'Fredoka', sans-serif; font-size: .9rem;
+  padding: .7rem 1.4rem; border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(0,0,0,.4);
+  opacity: 0; transition: opacity .25s, transform .25s; z-index: 50;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
   </style>
 </head>
 <body>
   <header>
     <h1>RSVP Dashboard</h1>
-    <a id="download-link" class="download-btn">
-      ⬇️ Download Excel
-    </a>
+    <a id="download-link" class="download-btn">⬇️ Download Excel</a>
   </header>
 
   <section class="stats" id="stats">
-    <div class="stat">
-      <div class="stat-label">Total Responses</div>
-      <div class="stat-value" id="stat-total">0</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Attending</div>
-      <div class="stat-value" id="stat-yes">0</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Not Attending</div>
-      <div class="stat-value" id="stat-no">0</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Total Attendees</div>
-      <div class="stat-value" id="stat-attendees">0</div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Of Which Kids</div>
-      <div class="stat-value" id="stat-kids">0</div>
-    </div>
+    <div class="stat"><div class="stat-label">Families</div>      <div class="stat-value" id="stat-total">0</div></div>
+    <div class="stat"><div class="stat-label">Yes</div>           <div class="stat-value" id="stat-yes">0</div></div>
+    <div class="stat"><div class="stat-label">No</div>            <div class="stat-value" id="stat-no">0</div></div>
+    <div class="stat"><div class="stat-label">Pending</div>       <div class="stat-value" id="stat-pending">0</div></div>
+    <div class="stat"><div class="stat-label">Total Attendees</div><div class="stat-value" id="stat-attendees">0</div></div>
+  </section>
+
+  <section class="add-family">
+    <h2>Add a Family</h2>
+    <form id="add-family-form" autocomplete="off">
+      <div class="add-family-row">
+        <label>Family Name
+          <input type="text" id="af-name" name="name" required maxlength="120" placeholder="e.g. Valencia Family" />
+        </label>
+        <label>Slots
+          <input type="number" id="af-slots" name="max_slots" required min="1" max="20" value="4" />
+        </label>
+        <button type="submit" class="create-btn">Create Invitation</button>
+      </div>
+      <p class="add-hint">A unique link is generated and copied to your clipboard, ready to paste into WhatsApp.</p>
+    </form>
   </section>
 
   <section class="table-wrap">
     <div class="table-header">
-      <h2>All Responses</h2>
+      <h2>Families</h2>
       <div class="filter">
         <button data-filter="all" class="active">All</button>
-        <button data-filter="yes">Attending</button>
-        <button data-filter="no">Declined</button>
+        <button data-filter="pending">Pending</button>
+        <button data-filter="yes">Yes</button>
+        <button data-filter="no">No</button>
       </div>
     </div>
     <div id="table-container"></div>
   </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/admin.js"></script>
 </body>
