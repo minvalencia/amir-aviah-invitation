@@ -291,62 +291,97 @@ app.get(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
 
 // API: download Excel
 app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
-  const rows = db.prepare('SELECT * FROM rsvps ORDER BY created_at DESC').all();
+  const families = db.prepare('SELECT * FROM families ORDER BY created_at DESC').all();
+  const attStmt = db.prepare(
+    'SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position'
+  );
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Mickey & Minnie Invitation';
+  workbook.creator = 'Valencia Kingdom Invitation';
   workbook.created = new Date();
 
-  const sheet = workbook.addWorksheet('RSVPs', {
-    properties: { tabColor: { argb: 'FFE91E63' } }
+  // ---------- Sheet 1: Families ----------
+  const fam = workbook.addWorksheet('Families', {
+    properties: { tabColor: { argb: 'FFE63946' } }
+  });
+  fam.columns = [
+    { header: '#',          key: 'id',         width: 6  },
+    { header: 'Family',     key: 'name',       width: 28 },
+    { header: 'Status',     key: 'status',     width: 12 },
+    { header: 'Slots Used', key: 'used',       width: 11 },
+    { header: 'Slots Max',  key: 'max',        width: 11 },
+    { header: 'Message',    key: 'message',    width: 36 },
+    { header: 'Created',    key: 'created_at', width: 22 },
+    { header: 'Claimed',    key: 'claimed_at', width: 22 },
+    { header: 'Updated',    key: 'updated_at', width: 22 },
+    { header: 'Share URL',  key: 'share_url',  width: 60 }
+  ];
+  fam.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+  fam.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE63946' } };
+  fam.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+  fam.getRow(1).height = 22;
+
+  const statusFor = (f) => {
+    if (f.attending === 'yes') return 'Yes';
+    if (f.attending === 'no')  return 'No';
+    return 'Pending';
+  };
+  const usedFor = (f) => {
+    if (f.attending === 'yes') return f.attendee_count ?? 0;
+    if (f.attending === 'no')  return 0;
+    return ''; // Pending → empty cell
+  };
+
+  // Convert SQLite TEXT timestamps to ISO-Z to match the JSON API surface.
+  const isoOrEmpty = (s) => s ? s.replace(' ', 'T') + 'Z' : '';
+
+  families.forEach(f => {
+    fam.addRow({
+      id: f.id,
+      name: f.name,
+      status: statusFor(f),
+      used: usedFor(f),
+      max: f.max_slots,
+      message: f.message || '',
+      created_at: isoOrEmpty(f.created_at),
+      claimed_at: isoOrEmpty(f.claimed_at),
+      updated_at: isoOrEmpty(f.updated_at),
+      share_url: `${req.protocol}://${req.get('host')}/i/${f.token}`
+    });
   });
 
-  sheet.columns = [
-    { header: '#',         key: 'id',         width: 6 },
-    { header: 'Name',      key: 'name',       width: 28 },
-    { header: 'Email',     key: 'email',      width: 30 },
-    { header: 'Phone',     key: 'phone',      width: 18 },
-    { header: 'Attending', key: 'attending',  width: 12 },
-    { header: 'Guests',    key: 'guests',     width: 10 },
-    { header: 'Kids',      key: 'kids',       width: 8  },
-    { header: 'Message',   key: 'message',    width: 40 },
-    { header: 'Submitted', key: 'created_at', width: 22 }
+  // ---------- Sheet 2: Attendees (flat) ----------
+  const att = workbook.addWorksheet('Attendees', {
+    properties: { tabColor: { argb: 'FFFF4D97' } }
+  });
+  att.columns = [
+    { header: '#',                  key: 'n',           width: 6  },
+    { header: 'Family',             key: 'family',      width: 28 },
+    { header: 'Family Status',      key: 'status',      width: 14 },
+    { header: 'Attendee Position',  key: 'position',    width: 18 },
+    { header: 'Attendee Name',      key: 'name',        width: 28 }
   ];
+  att.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+  att.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF4D97' } };
+  att.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-  // Header style
-  sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-  sheet.getRow(1).fill = {
-    type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE91E63' }
-  };
-  sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-  sheet.getRow(1).height = 22;
-
-  rows.forEach(r => sheet.addRow(r));
-
-  // Summary sheet
-  const summary = workbook.addWorksheet('Summary');
-  summary.columns = [
-    { header: 'Metric', key: 'metric', width: 30 },
-    { header: 'Value',  key: 'value',  width: 15 }
-  ];
-  summary.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  summary.getRow(1).fill = {
-    type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A1A' }
-  };
-
-  const yes = rows.filter(r => r.attending === 'yes');
-  summary.addRows([
-    { metric: 'Total Responses',          value: rows.length },
-    { metric: 'Attending (Yes)',          value: yes.length },
-    { metric: 'Not Attending (No)',       value: rows.length - yes.length },
-    { metric: 'Total Attendees (heads)',  value: yes.reduce((s, r) => s + (r.guests || 0), 0) },
-    { metric: 'Total Kids',               value: yes.reduce((s, r) => s + (r.kids   || 0), 0) }
-  ]);
+  let counter = 1;
+  families.forEach(f => {
+    const rows = attStmt.all(f.id);
+    rows.forEach(r => {
+      att.addRow({
+        n: counter++,
+        family: f.name,
+        status: statusFor(f),
+        position: r.position + 1, // 1-based for humans in the spreadsheet
+        name: r.name
+      });
+    });
+  });
 
   const filename = `rsvp-list-${new Date().toISOString().slice(0, 10)}.xlsx`;
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
   await workbook.xlsx.write(res);
   res.end();
 });
