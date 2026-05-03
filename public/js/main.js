@@ -276,28 +276,92 @@ function relativeTime(d) {
   return d.toLocaleDateString();
 }
 
-// ---------- Initialise based on page mode ----------
-if (familyData && form) {
-  // gate-family mode: bind form to this family.
-  passHolderEl.textContent = familyData.name;
-  if (slotsLineEl) {
-    slotsLineEl.textContent = `Up to ${familyData.max_slots} attendees on this invitation.`;
+// ---------- Stamped-pass renderer ----------
+// Shown both (a) when a guest revisits an already-claimed link, and
+// (b) immediately after a fresh submit. Edit + Download buttons live here.
+function renderStampedPass() {
+  successBox.innerHTML = '';
+  const attending = familyData.attending;
+
+  const stamp = document.createElement('div');
+  stamp.className = 'bp-stamped';
+  stamp.textContent = 'STAMPED';
+  successBox.appendChild(stamp);
+
+  const heading = document.createElement('h3');
+  heading.textContent = attending === 'yes'
+    ? `Pass stamped, ${familyData.name}!`
+    : `Thanks, ${familyData.name}.`;
+  successBox.appendChild(heading);
+
+  const lead = document.createElement('p');
+  lead.id = 'success-message';
+  lead.textContent = attending === 'yes'
+    ? `${familyData.attendee_count} attendee${familyData.attendee_count === 1 ? '' : 's'} confirmed:`
+    : `You'll be missed!`;
+  successBox.appendChild(lead);
+
+  if (attending === 'yes' && familyData.attendees?.length) {
+    const list = document.createElement('ul');
+    list.className = 'stamped-attendees';
+    familyData.attendees.forEach(a => {
+      const li = document.createElement('li');
+      li.textContent = a.name;
+      list.appendChild(li);
+    });
+    successBox.appendChild(list);
   }
 
-  const initialAttending = familyData.attending; // 'yes' | 'no' | null
-  const isEdit = initialAttending !== null;
+  if (familyData.message) {
+    const msg = document.createElement('p');
+    msg.className = 'stamped-message';
+    msg.textContent = `“${familyData.message}”`;
+    successBox.appendChild(msg);
+  }
+
+  const meta = document.createElement('p');
+  meta.className = 'stamped-meta';
+  const ts = familyData.updated_at || familyData.claimed_at;
+  meta.textContent = ts ? `Last updated ${relativeTime(new Date(ts))}` : '';
+  successBox.appendChild(meta);
+
+  // Action row — Edit + Download.
+  const actions = document.createElement('div');
+  actions.className = 'bp-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'bp-action-btn edit';
+  editBtn.textContent = 'EDIT MY PASS';
+  editBtn.addEventListener('click', () => showFormView());
+  actions.appendChild(editBtn);
+
+  const dlBtn = document.createElement('button');
+  dlBtn.type = 'button';
+  dlBtn.className = 'bp-action-btn download';
+  dlBtn.textContent = 'DOWNLOAD PASS';
+  dlBtn.addEventListener('click', () => downloadPass(dlBtn));
+  actions.appendChild(dlBtn);
+
+  successBox.appendChild(actions);
+}
+
+// Render the form-view (claim or update). isEdit toggles the title + submit-button copy.
+function showFormView() {
+  const isEdit = familyData.attending !== null;
   setEditMode(isEdit, familyData.updated_at || familyData.claimed_at);
 
-  if (initialAttending === 'no') {
-    form.querySelector('input[name="attending"][value="no"]').checked = true;
+  // Pre-select the prior choice (or leave both unset on first claim).
+  const yesRadio = form.querySelector('input[name="attending"][value="yes"]');
+  const noRadio  = form.querySelector('input[name="attending"][value="no"]');
+  yesRadio.checked = familyData.attending === 'yes';
+  noRadio.checked  = familyData.attending === 'no';
+
+  if (familyData.attending === 'no') {
     setAttendingOnly(false);
   } else {
-    // Pre-select YES on edit-yes; otherwise leave both unchecked but render slots.
-    if (initialAttending === 'yes') {
-      form.querySelector('input[name="attending"][value="yes"]').checked = true;
-    }
     setAttendingOnly(true);
-    const initialCount = isEdit && initialAttending === 'yes'
+    const initialCount = isEdit && familyData.attending === 'yes'
       ? familyData.attendee_count
       : familyData.max_slots;
     currentAttendeeCount = initialCount;
@@ -306,11 +370,66 @@ if (familyData && form) {
   }
 
   // Pre-fill message
-  if (familyData.message) {
-    form.querySelector('textarea[name="message"]').value = familyData.message;
+  const msgEl = form.querySelector('textarea[name="message"]');
+  msgEl.value = familyData.message || '';
+
+  successBox.classList.add('hidden');
+  form.classList.remove('hidden');
+  submitBtn.disabled = false;
+  submitBtn.querySelector('span').textContent = isEdit ? 'UPDATE MY PASS' : 'STAMP MY PASS';
+}
+
+// Show the stamped pass (already-claimed view).
+function showStampedView() {
+  renderStampedPass();
+  form.classList.add('hidden');
+  successBox.classList.remove('hidden');
+  setProgress(100);
+}
+
+// ---------- Download pass (html2canvas → PNG) ----------
+async function downloadPass(button) {
+  if (typeof html2canvas !== 'function') {
+    showToast('⚠ Download library still loading — try again in a moment.');
+    return;
+  }
+  const target = document.querySelector('.boarding-pass');
+  if (!target) return;
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = 'CAPTURING…';
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const canvas = await html2canvas(target, {
+      backgroundColor: '#fff5e1',
+      scale: 2,
+      useCORS: true,
+      ignoreElements: (el) => el.classList && el.classList.contains('bp-actions')
+    });
+    const slug = (familyData.name || 'pass').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+    const a = document.createElement('a');
+    a.download = `${slug}-pass.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    showToast('★  Pass downloaded.');
+  } catch (err) {
+    console.error(err);
+    showToast('⚠ Could not capture pass — try a different browser.');
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+
+// ---------- Initialise based on page mode ----------
+if (familyData && form) {
+  // gate-family mode: bind form to this family.
+  passHolderEl.textContent = familyData.name;
+  if (slotsLineEl) {
+    slotsLineEl.textContent = `Up to ${familyData.max_slots} attendees on this invitation.`;
   }
 
-  // attending toggle
+  // attending toggle (form mode only)
   form.addEventListener('change', (e) => {
     if (e.target.name !== 'attending') return;
     if (e.target.value === 'no') {
@@ -344,7 +463,6 @@ if (familyData && form) {
     if (attending === 'yes') {
       const inputs = attendeeListEl.querySelectorAll('input');
       const attendees = Array.from(inputs).map(i => ({ name: i.value.trim() }));
-      // Client-side guard
       const blanks = attendees.filter(a => !a.name);
       if (blanks.length) {
         showToast('⚠  Please fill in every attendee name.');
@@ -367,38 +485,17 @@ if (familyData && form) {
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'Server error.');
 
-      form.classList.add('hidden');
-      successBox.classList.remove('hidden');
+      // Refresh local snapshot, then show the stamped pass.
+      Object.assign(familyData, json.family);
+      showStampedView();
+
       if (attending === 'yes') {
-        successMessage.textContent = `Pass stamped, ${familyData.name}! See you at the parade.`;
         if (window.confettiBurst) window.confettiBurst();
         bumpSparkles(25);
         showToast('★  Magic Pass stamped — see you soon!');
       } else {
-        successMessage.textContent = `Thanks for letting us know, ${familyData.name}. You'll be missed!`;
+        showToast('✦  RSVP saved.');
       }
-      setProgress(100);
-
-      // Add (or re-show) an "Edit my pass" link that swaps the form back in,
-      // pre-filled with what the server now has, so plans can change without a refresh.
-      let editLink = successBox.querySelector('.edit-again-link');
-      if (!editLink) {
-        editLink = document.createElement('button');
-        editLink.type = 'button';
-        editLink.className = 'edit-again-link';
-        editLink.textContent = 'Need to change something? Edit my pass →';
-        successBox.appendChild(editLink);
-        editLink.addEventListener('click', () => {
-          // Refresh the local familyData snapshot from json.family so re-edit pre-fills correctly
-          Object.assign(familyData, json.family);
-          setEditMode(true, familyData.updated_at);
-          successBox.classList.add('hidden');
-          form.classList.remove('hidden');
-          submitBtn.disabled = false;
-          submitBtn.querySelector('span').textContent = 'UPDATE MY PASS';
-        });
-      }
-
       successBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (err) {
       showToast('⚠  ' + err.message);
@@ -406,6 +503,13 @@ if (familyData && form) {
       submitBtn.querySelector('span').textContent = originalLabel;
     }
   });
+
+  // Initial render — claimed families see the stamped pass; new ones see the form.
+  if (familyData.attending !== null) {
+    showStampedView();
+  } else {
+    showFormView();
+  }
 } else if (form) {
   // gate-link or gate-invalid: don't bind submit. Disable it visibly so it can't be tabbed to.
   if (submitBtn) submitBtn.disabled = true;

@@ -1212,3 +1212,74 @@ body[data-landing-mode="gate-family"] [data-bp-slots-line] {
   text-underline-offset: 4px;
 }
 .edit-again-link:hover { color: var(--mickey-red); }
+
+/* Stamped-pass content (shown on revisit + after submit) */
+.stamped-attendees {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 4px;
+  font-family: 'Caveat', cursive;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+.stamped-attendees li::before {
+  content: '✦ ';
+  color: var(--mickey-red);
+  margin-right: 4px;
+}
+.stamped-message {
+  font-family: 'Caveat', cursive;
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 8px 14px 0;
+  line-height: 1.3;
+}
+.stamped-meta {
+  font-family: 'Bungee', sans-serif;
+  font-size: 9px;
+  letter-spacing: .2em;
+  color: var(--mickey-red-deep);
+  margin-top: 12px;
+  opacity: .75;
+}
+
+/* Pass action buttons (Edit / Download) */
+.bp-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.bp-action-btn {
+  font-family: 'Bungee', sans-serif;
+  font-size: 11px;
+  letter-spacing: .15em;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform .15s, box-shadow .15s;
+  border: 2px solid transparent;
+}
+.bp-action-btn.edit {
+  background: var(--mickey-red);
+  color: var(--ivory);
+  box-shadow: 0 4px 0 var(--mickey-red-deep);
+}
+.bp-action-btn.edit:hover    { transform: translateY(-1px); box-shadow: 0 5px 0 var(--mickey-red-deep); }
+.bp-action-btn.edit:active   { transform: translateY(2px); box-shadow: 0 2px 0 var(--mickey-red-deep); }
+.bp-action-btn.download {
+  background: var(--ivory);
+  color: var(--ink);
+  border-color: var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+}
+.bp-action-btn.download:hover  { transform: translateY(-1px); box-shadow: 0 5px 0 var(--ink); }
+.bp-action-btn.download:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
+.bp-action-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
