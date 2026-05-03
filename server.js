@@ -105,6 +105,92 @@ app.get('/api/family/:token', (req, res) => {
   res.json({ ok: true, family: familyToJSON(family, attendees) });
 });
 
+// ---------- Public: submit / update RSVP ----------
+app.post('/api/family/:token/rsvp', (req, res) => {
+  try {
+    const token = String(req.params.token || '');
+    if (!/^[A-Za-z0-9]{12}$/.test(token)) {
+      return res.status(404).json({ ok: false, error: 'Invitation not found.' });
+    }
+    const family = db.prepare('SELECT * FROM families WHERE token = ?').get(token);
+    if (!family) return res.status(404).json({ ok: false, error: 'Invitation not found.' });
+
+    const body = req.body || {};
+
+    // 1. attending must be 'yes' or 'no'.
+    const attending = body.attending;
+    if (attending !== 'yes' && attending !== 'no') {
+      return res.status(400).json({ ok: false, error: "attending must be 'yes' or 'no'." });
+    }
+
+    let attendeeCount, attendeeNames;
+    if (attending === 'no') {
+      // 2. Spec §4 rule 3: force-ignore attendee_count and attendees entirely.
+      attendeeCount = 0;
+      attendeeNames = [];
+    } else {
+      // 3. attending === 'yes'
+      let attendees = body.attendees;
+      // Body-shape gate (spec §4 rule 1) — cap length BEFORE walking the array
+      // so a 10MB payload of names is rejected without inspection.
+      if (!Array.isArray(attendees)) {
+        return res.status(400).json({ ok: false, error: 'attendees must be an array.' });
+      }
+      if (attendees.length > family.max_slots) {
+        return res.status(400).json({ ok: false, error: `Only ${family.max_slots} slots on this pass.` });
+      }
+      attendeeCount = parseInt(body.attendee_count, 10);
+      if (!Number.isInteger(attendeeCount) || attendeeCount < 1 || attendeeCount > family.max_slots) {
+        return res.status(400).json({ ok: false, error: `attendee_count must be 1..${family.max_slots}.` });
+      }
+      if (attendees.length !== attendeeCount) {
+        return res.status(400).json({ ok: false, error: 'attendees length must equal attendee_count.' });
+      }
+      attendeeNames = attendees.map((a, i) => {
+        const n = String(a?.name ?? '').trim();
+        if (!n) throw new Error(`Attendee ${i + 1} name is required.`);
+        return n.slice(0, 120);
+      });
+    }
+
+    // 4. Optional message.
+    const message = body.message != null
+      ? String(body.message).trim().slice(0, 1000)
+      : null;
+
+    // Transaction: update + delete + insert atomically.
+    const updateFamily = db.prepare(`
+      UPDATE families
+      SET attending = ?, attendee_count = ?, message = ?,
+          claimed_at = COALESCE(claimed_at, CURRENT_TIMESTAMP),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    const deleteAttendees = db.prepare('DELETE FROM attendees WHERE family_id = ?');
+    const insertAttendee = db.prepare(
+      'INSERT INTO attendees (family_id, name, position) VALUES (?, ?, ?)'
+    );
+
+    const tx = db.transaction(() => {
+      updateFamily.run(attending, attendeeCount, message, family.id);
+      deleteAttendees.run(family.id);
+      attendeeNames.forEach((name, i) => insertAttendee.run(family.id, name, i));
+    });
+    tx();
+
+    const updated = db.prepare('SELECT * FROM families WHERE id = ?').get(family.id);
+    const att = db.prepare('SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position').all(family.id);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, family: familyToJSON(updated, att) });
+  } catch (err) {
+    if (err && /name is required/.test(err.message)) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+    console.error(err);
+    res.status(500).json({ ok: false, error: 'Server error.' });
+  }
+});
+
 // ---------- Admin (protected) ----------
 const adminAuth = basicAuth({
   users: { [ADMIN_USER]: ADMIN_PASS },
