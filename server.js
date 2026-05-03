@@ -28,20 +28,28 @@ if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 const db = new Database(process.env.DB_PATH || './data/rsvps.db');
 
 // Schema sync — runs on every boot, idempotent.
-// New tables persist across restarts on a Render Starter plan with a mounted disk.
-// `DROP TABLE IF EXISTS rsvps` is safe: once the legacy table is gone, it no-ops.
+//
+// Two paths:
+//   (a) Fresh DB: CREATE TABLE IF NOT EXISTS does the work.
+//   (b) Legacy DB with `max_slots`: rebuild the families table inside a
+//       transaction (the only safe pattern given SQLite < 3.35 has no
+//       DROP COLUMN). The legacy `max_slots` value migrates to
+//       `adult_slots`; `kid_slots` defaults to 0. Attendees gain a
+//       `kind` column via ALTER (safe — no constraint conflict).
 db.exec(`
   CREATE TABLE IF NOT EXISTS families (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     token           TEXT NOT NULL UNIQUE,
     name            TEXT NOT NULL,
-    max_slots       INTEGER NOT NULL CHECK (max_slots BETWEEN 1 AND 20),
+    adult_slots     INTEGER NOT NULL CHECK (adult_slots BETWEEN 0 AND 20),
+    kid_slots       INTEGER NOT NULL CHECK (kid_slots   BETWEEN 0 AND 20),
     attending       TEXT CHECK (attending IN ('yes', 'no')),
     attendee_count  INTEGER CHECK (attendee_count >= 0),
     message         TEXT,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     claimed_at      DATETIME,
-    updated_at      DATETIME
+    updated_at      DATETIME,
+    CHECK (adult_slots + kid_slots BETWEEN 1 AND 20)
   );
   CREATE INDEX IF NOT EXISTS idx_families_token ON families(token);
 
@@ -49,12 +57,55 @@ db.exec(`
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     family_id  INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
     name       TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'adult' CHECK (kind IN ('adult','kid')),
     position   INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_attendees_family ON attendees(family_id);
 
   DROP TABLE IF EXISTS rsvps;
 `);
+
+// --- Migration: legacy families.max_slots → families.{adult_slots,kid_slots} ---
+// IMPORTANT: foreign_keys MUST be off during the rebuild. better-sqlite3
+// enables FKs by default (unlike vanilla SQLite), so without this guard
+// the `DROP TABLE families` cascade-deletes every attendee row.
+const familyCols = db.prepare("PRAGMA table_info('families')").all().map(r => r.name);
+if (familyCols.includes('max_slots') && !familyCols.includes('adult_slots')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    BEGIN;
+    CREATE TABLE families_new (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      token           TEXT NOT NULL UNIQUE,
+      name            TEXT NOT NULL,
+      adult_slots     INTEGER NOT NULL CHECK (adult_slots BETWEEN 0 AND 20),
+      kid_slots       INTEGER NOT NULL CHECK (kid_slots   BETWEEN 0 AND 20),
+      attending       TEXT CHECK (attending IN ('yes', 'no')),
+      attendee_count  INTEGER CHECK (attendee_count >= 0),
+      message         TEXT,
+      created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      claimed_at      DATETIME,
+      updated_at      DATETIME,
+      CHECK (adult_slots + kid_slots BETWEEN 1 AND 20)
+    );
+    INSERT INTO families_new
+      (id, token, name, adult_slots, kid_slots, attending, attendee_count, message, created_at, claimed_at, updated_at)
+      SELECT id, token, name, max_slots, 0, attending, attendee_count, message, created_at, claimed_at, updated_at
+      FROM families;
+    DROP TABLE families;
+    ALTER TABLE families_new RENAME TO families;
+    CREATE INDEX IF NOT EXISTS idx_families_token ON families(token);
+    COMMIT;
+  `);
+  console.log('🛠  Migrated families table: max_slots → adult_slots/kid_slots.');
+}
+
+// --- Migration: attendees.kind ---
+const attCols = db.prepare("PRAGMA table_info('attendees')").all().map(r => r.name);
+if (!attCols.includes('kind')) {
+  db.exec(`ALTER TABLE attendees ADD COLUMN kind TEXT NOT NULL DEFAULT 'adult';`);
+  console.log('🛠  Migrated attendees table: added kind column.');
+}
 
 // Foreign keys are off by default in SQLite; turn them on so ON DELETE CASCADE works.
 db.pragma('foreign_keys = ON');
