@@ -243,40 +243,41 @@ app.post('/api/family/:token/rsvp', (req, res) => {
       return res.status(400).json({ ok: false, error: "attending must be 'yes' or 'no'." });
     }
 
-    let attendeeCount, attendeeNames;
-    if (attending === 'no') {
-      // 2. Spec §4 rule 3: force-ignore attendee_count and attendees entirely.
-      attendeeCount = 0;
-      attendeeNames = [];
-    } else {
-      // 3. attending === 'yes'
-      let attendees = body.attendees;
-      // Body-shape gate (spec §4 rule 1) — cap length BEFORE walking the array
-      // so a 10MB payload of names is rejected without inspection.
-      if (!Array.isArray(attendees)) {
-        return res.status(400).json({ ok: false, error: 'attendees must be an array.' });
-      }
-      if (attendees.length > family.max_slots) {
-        return res.status(400).json({ ok: false, error: `Only ${family.max_slots} slots on this pass.` });
-      }
-      attendeeCount = parseInt(body.attendee_count, 10);
-      if (!Number.isInteger(attendeeCount) || attendeeCount < 1 || attendeeCount > family.max_slots) {
-        return res.status(400).json({ ok: false, error: `attendee_count must be 1..${family.max_slots}.` });
-      }
-      if (attendees.length !== attendeeCount) {
-        return res.status(400).json({ ok: false, error: 'attendees length must equal attendee_count.' });
-      }
-      attendeeNames = attendees.map((a, i) => {
-        const n = String(a?.name ?? '').trim();
-        if (!n) throw new Error(`Attendee ${i + 1} name is required.`);
-        return n.slice(0, 120);
-      });
-    }
+    let adultsClean = [];
+    let kidsClean   = [];
 
-    // 4. Optional message.
+    if (attending === 'yes') {
+      // 2. Body shape — both arrays (default to []), then cap BEFORE walking,
+      //    so a 10MB payload of names is rejected without inspection.
+      const adults = Array.isArray(body.adults) ? body.adults : [];
+      const kids   = Array.isArray(body.kids)   ? body.kids   : [];
+
+      if (adults.length > family.adult_slots) {
+        return res.status(400).json({ ok: false, error: `Only ${family.adult_slots} adult slot${family.adult_slots === 1 ? '' : 's'} on this pass.` });
+      }
+      if (kids.length > family.kid_slots) {
+        return res.status(400).json({ ok: false, error: `Only ${family.kid_slots} kid slot${family.kid_slots === 1 ? '' : 's'} on this pass.` });
+      }
+      if (adults.length + kids.length < 1) {
+        return res.status(400).json({ ok: false, error: 'Please add at least one attendee.' });
+      }
+
+      const cleanRow = (a, label) => {
+        const n = String(a?.name ?? '').trim();
+        if (!n) throw new Error(`${label} name is required.`);
+        return n.slice(0, 120);
+      };
+      adultsClean = adults.map((a, i) => cleanRow(a, `Adult ${i + 1}`));
+      kidsClean   = kids.map((a, i)   => cleanRow(a, `Kid ${i + 1}`));
+    }
+    // attending === 'no' → both arrays stay empty; attendee_count = 0.
+
+    // 3. Optional message.
     const message = body.message != null
       ? String(body.message).trim().slice(0, 1000)
       : null;
+
+    const totalCount = adultsClean.length + kidsClean.length;
 
     // Transaction: update + delete + insert atomically.
     const updateFamily = db.prepare(`
@@ -288,13 +289,15 @@ app.post('/api/family/:token/rsvp', (req, res) => {
     `);
     const deleteAttendees = db.prepare('DELETE FROM attendees WHERE family_id = ?');
     const insertAttendee = db.prepare(
-      'INSERT INTO attendees (family_id, name, position) VALUES (?, ?, ?)'
+      'INSERT INTO attendees (family_id, name, position, kind) VALUES (?, ?, ?, ?)'
     );
 
     const tx = db.transaction(() => {
-      updateFamily.run(attending, attendeeCount, message, family.id);
+      updateFamily.run(attending, totalCount, message, family.id);
       deleteAttendees.run(family.id);
-      attendeeNames.forEach((name, i) => insertAttendee.run(family.id, name, i));
+      let pos = 0;
+      adultsClean.forEach(name => insertAttendee.run(family.id, name, pos++, 'adult'));
+      kidsClean.forEach(name   => insertAttendee.run(family.id, name, pos++, 'kid'));
     });
     tx();
 
