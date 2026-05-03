@@ -87,6 +87,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Public endpoints ----------
 
+// ---------- Public: read family by token ----------
+app.get('/api/family/:token', (req, res) => {
+  const token = String(req.params.token || '');
+  // Reject obviously bad tokens early — saves a DB hit.
+  if (!/^[A-Za-z0-9]{12}$/.test(token)) {
+    return res.status(404).json({ ok: false, error: 'Invitation not found.' });
+  }
+  const family = db.prepare('SELECT * FROM families WHERE token = ?').get(token);
+  if (!family) {
+    return res.status(404).json({ ok: false, error: 'Invitation not found.' });
+  }
+  const attendees = db.prepare(
+    'SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position'
+  ).all(family.id);
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, family: familyToJSON(family, attendees) });
+});
+
 // ---------- Admin (protected) ----------
 const adminAuth = basicAuth({
   users: { [ADMIN_USER]: ADMIN_PASS },
