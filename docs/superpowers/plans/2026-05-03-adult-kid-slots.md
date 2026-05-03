@@ -328,9 +328,9 @@ git commit -m "feat(server): familyToJSON returns adult_slots/kid_slots + derive
 **Files:**
 - Modify: `server.js:178-261` (`POST /api/family/:token/rsvp`)
 
-- [ ] **Step 1: Replace the validation + transaction blocks**
+- [ ] **Step 1: Replace the validation + transaction + response blocks**
 
-Replace lines 187-248 (the body of the try-block from `const body = req.body || {};` up to and including the `tx();` call) with:
+Replace lines 187-253 (the body of the try-block from `const body = req.body || {};` through and including the response block — `const updated`, `const att`, `res.set`, `res.json`) with the code below. **Critical:** make sure the replacement includes the response — dropping the original response block would leave the route hanging. The new SELECT for re-fetching attendees includes `kind`.
 
 ```js
     const body = req.body || {};
@@ -398,9 +398,16 @@ Replace lines 187-248 (the body of the try-block from `const body = req.body || 
       kidsClean.forEach(name   => insertAttendee.run(family.id, name, pos++, 'kid'));
     });
     tx();
+
+    const updated = db.prepare('SELECT * FROM families WHERE id = ?').get(family.id);
+    const att = db.prepare('SELECT name, position, kind FROM attendees WHERE family_id = ? ORDER BY position').all(family.id);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, family: familyToJSON(updated, att) });
 ```
 
-Also update the catch block at the end of the try (line ~256) — the old check was `/name is required/`. The new error messages still match that regex (`"Adult 1 name is required."` etc.), so no change needed. Verify by reading the catch.
+The catch block at the end of the try (line ~256) checks `/name is required/`. The new error messages (`"Adult 1 name is required."`, `"Kid 2 name is required."`) still match that regex — no catch-block change needed. (Verify by reading the catch.)
+
+Note: the SELECT-with-kind in this block makes the Task 3 Step 2 grep partially redundant for this route, but the redundancy is harmless and Task 3 still needs to run for the OTHER three SELECT sites.
 
 - [ ] **Step 2: Restart and submit a valid RSVP**
 
@@ -626,7 +633,7 @@ Replace the `<form id="add-family-form">` block with:
 
 - [ ] **Step 3: Tweak the stat tile color overrides**
 
-In the `<style>` block, find the `/* Stat tile color overrides — 5 tiles now */` section (around line 190) and update to 6 tiles:
+In the `<style>` block, find the `/* Stat tile color overrides — 5 tiles now */` section (around line 190). Update the comment to read `/* Stat tile color overrides — 6 tiles now */` and replace the rules with:
 
 ```css
 .stat:nth-child(1) { border-color: var(--red); }
@@ -713,7 +720,7 @@ addForm.addEventListener('submit', async (e) => {
 
 - [ ] **Step 2: Update stats bindings**
 
-Replace the four lines that set `#stat-total`/`#stat-yes`/`#stat-no`/`#stat-pending`/`#stat-attendees` inside `load()` with:
+Replace the five lines that set `#stat-total`/`#stat-yes`/`#stat-no`/`#stat-pending`/`#stat-attendees` inside `load()` with:
 
 ```js
     $('#stat-total').textContent   = json.stats.families_total;
@@ -1271,4 +1278,4 @@ Before marking the work complete, walk through this in a browser:
 - [ ] Guest: edit-on-revisit pre-fills both sections with the correct prior names in the correct sections.
 - [ ] Boarding-pass PNG download mirrors the in-page stamped view's grouping.
 - [ ] Restart the server twice — second boot logs no migration messages.
-- [ ] `git log --oneline` shows one commit per task (12-13 commits since the spec).
+- [ ] `git log --oneline` shows one commit per task (13 commits since the spec).
