@@ -678,18 +678,39 @@ function reflectMuteState() {
   musicBtn.classList.toggle('muted', userMuted || audio.paused);
 }
 
+// Brief banner shown only when autoplay is blocked, telling visitors that the
+// soundtrack is waiting for a tap. Hides itself on first interaction and is
+// belt-and-braces auto-dismissed after 12s regardless.
+function showMusicHint() {
+  if (document.querySelector('.music-hint')) return;
+  const hint = document.createElement('div');
+  hint.className = 'music-hint';
+  hint.innerHTML = '<span class="mh-note">♪</span><span class="mh-text">Tap anywhere to enter the kingdom</span><span class="mh-spark">✨</span>';
+  document.body.appendChild(hint);
+  // Trigger the entrance transition next frame so the rule actually animates.
+  requestAnimationFrame(() => hint.classList.add('show'));
+  const dismiss = () => {
+    hint.classList.remove('show');
+    setTimeout(() => hint.remove(), 400);
+  };
+  setTimeout(dismiss, 12000);
+  return dismiss;
+}
+
 async function tryPlay() {
   if (userMuted) { reflectMuteState(); return; }
   try {
     await audio.play();
     reflectMuteState();
   } catch {
-    // Autoplay blocked — wait for the first user gesture, then start.
+    // Autoplay blocked — flash the hint, then wait for the first user gesture.
+    const dismissHint = showMusicHint();
     const start = async () => {
       window.removeEventListener('pointerdown', start);
       window.removeEventListener('keydown', start);
       window.removeEventListener('scroll', start);
       window.removeEventListener('touchstart', start);
+      if (dismissHint) dismissHint();
       if (userMuted) return;
       try { await audio.play(); reflectMuteState(); } catch {}
     };
