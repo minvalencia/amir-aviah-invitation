@@ -159,8 +159,9 @@ if (ticketBtn) {
 }
 
 // ---------- Countdown ----------
-// ✏️ EDIT: set this to your event's date/time (local browser time)
-const EVENT_DATE = new Date('2026-06-15T15:00:00');
+// Christening at Immaculate Conception Parish Church, Concepcion, Marikina —
+// Saturday, June 13, 2026 at 11:00 AM (Asia/Manila local time).
+const EVENT_DATE = new Date('2026-06-13T11:00:00+08:00');
 
 function updateCountdown() {
   const now = new Date();
