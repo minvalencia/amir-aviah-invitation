@@ -1486,3 +1486,8 @@ body[data-landing-mode="gate-family"] [data-bp-slots-line] {
 .bp-action-btn.download:hover  { transform: translateY(-1px); box-shadow: 0 5px 0 var(--ink); }
 .bp-action-btn.download:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
 .bp-action-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+/* --- Adult / Kid section divider on the RSVP form --- */
+.kind-section + .kind-section { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px dashed rgba(255,255,255,.18); }
+.kind-section.hidden { display: none; }
+.kind-names-label { display: block; margin-top: .6rem; font-size: .85rem; opacity: .8; }

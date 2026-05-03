@@ -355,18 +355,18 @@
             </div>
           </fieldset>
 
-          <div class="bp-field attending-only">
-            <label>How many attending? *</label>
-            <div class="count-pills" id="count-pills" role="radiogroup" aria-label="Attendee count">
-              <!-- buttons populated by main.js based on max_slots -->
-            </div>
+          <div class="bp-field attending-only kind-section" data-kind="adult" id="adult-section">
+            <label>How many adults? *</label>
+            <div class="count-pills" id="adult-pills" role="radiogroup" aria-label="Adult count"></div>
+            <label class="kind-names-label">Adult names *</label>
+            <div class="attendee-list" id="adult-list"></div>
           </div>
 
-          <div class="bp-field attending-only">
-            <label>Attendee names *</label>
-            <div class="attendee-list" id="attendee-list">
-              <!-- rows populated by main.js to match the selected count -->
-            </div>
+          <div class="bp-field attending-only kind-section" data-kind="kid" id="kid-section">
+            <label>How many kids? *</label>
+            <div class="count-pills" id="kid-pills" role="radiogroup" aria-label="Kid count"></div>
+            <label class="kind-names-label">Kid names *</label>
+            <div class="attendee-list" id="kid-list"></div>
           </div>
 
           <div class="bp-field">
