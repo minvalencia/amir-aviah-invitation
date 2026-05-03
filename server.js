@@ -419,12 +419,12 @@ app.get(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
 
   // Stats — derive from the family rows
   const stats = {
-    families_total:    result.length,
-    yes_count:         result.filter(r => r.attending === 'yes').length,
-    no_count:          result.filter(r => r.attending === 'no').length,
-    pending_count:     result.filter(r => r.attending === null).length,
-    total_attendees:   result.filter(r => r.attending === 'yes')
-                             .reduce((s, r) => s + (r.attendee_count || 0), 0)
+    families_total: result.length,
+    yes_count:      result.filter(r => r.attending === 'yes').length,
+    no_count:       result.filter(r => r.attending === 'no').length,
+    pending_count:  result.filter(r => r.attending === null).length,
+    adult_count:    result.filter(r => r.attending === 'yes').reduce((s, r) => s + (r.adult_count || 0), 0),
+    kid_count:      result.filter(r => r.attending === 'yes').reduce((s, r) => s + (r.kid_count   || 0), 0)
   };
 
   res.json({ ok: true, stats, families: result });
