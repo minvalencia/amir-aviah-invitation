@@ -193,7 +193,7 @@ app.get('/i/:token', (req, res) => {
     }));
   }
   const attendees = db.prepare(
-    'SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position'
+    'SELECT name, position, kind FROM attendees WHERE family_id = ? ORDER BY position'
   ).all(family.id);
   const familyJSON = familyToJSON(family, attendees);
   res.send(renderInvitation({
@@ -219,7 +219,7 @@ app.get('/api/family/:token', (req, res) => {
     return res.status(404).json({ ok: false, error: 'Invitation not found.' });
   }
   const attendees = db.prepare(
-    'SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position'
+    'SELECT name, position, kind FROM attendees WHERE family_id = ? ORDER BY position'
   ).all(family.id);
   res.set('Cache-Control', 'no-store');
   res.json({ ok: true, family: familyToJSON(family, attendees) });
@@ -299,7 +299,7 @@ app.post('/api/family/:token/rsvp', (req, res) => {
     tx();
 
     const updated = db.prepare('SELECT * FROM families WHERE id = ?').get(family.id);
-    const att = db.prepare('SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position').all(family.id);
+    const att = db.prepare('SELECT name, position, kind FROM attendees WHERE family_id = ? ORDER BY position').all(family.id);
     res.set('Cache-Control', 'no-store');
     res.json({ ok: true, family: familyToJSON(updated, att) });
   } catch (err) {
@@ -333,17 +333,27 @@ function familyToShareUrl(req, token) {
 function familyToJSON(family, attendees) {
   // Convert SQLite TEXT timestamps to ISO-8601 with Z so client time math works.
   const isoOrNull = (s) => s ? s.replace(' ', 'T') + 'Z' : null;
+  const list = (attendees || []).map(a => ({
+    name: a.name,
+    kind: a.kind || 'adult',
+    position: a.position
+  }));
+  const adultCount = list.filter(a => a.kind === 'adult').length;
+  const kidCount   = list.filter(a => a.kind === 'kid').length;
   return {
     id: family.id,
     name: family.name,
-    max_slots: family.max_slots,
+    adult_slots: family.adult_slots,
+    kid_slots:   family.kid_slots,
     attending: family.attending,
     attendee_count: family.attendee_count,
+    adult_count: adultCount,
+    kid_count:   kidCount,
     message: family.message,
     created_at: isoOrNull(family.created_at),
     claimed_at: isoOrNull(family.claimed_at),
     updated_at: isoOrNull(family.updated_at),
-    attendees: (attendees || []).map(a => ({ name: a.name, position: a.position }))
+    attendees: list
   };
 }
 
@@ -393,7 +403,7 @@ app.post(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
 // ---------- Admin: list families ----------
 app.get(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
   const families = db.prepare('SELECT * FROM families ORDER BY created_at DESC').all();
-  const attStmt = db.prepare('SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position');
+  const attStmt = db.prepare('SELECT name, position, kind FROM attendees WHERE family_id = ? ORDER BY position');
 
   const result = families.map(f => {
     const att = attStmt.all(f.id);
@@ -421,7 +431,7 @@ app.get(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
 app.get(`/${ADMIN_PATH}/api/download`, adminAuth, async (req, res) => {
   const families = db.prepare('SELECT * FROM families ORDER BY created_at DESC').all();
   const attStmt = db.prepare(
-    'SELECT name, position FROM attendees WHERE family_id = ? ORDER BY position'
+    'SELECT name, position, kind FROM attendees WHERE family_id = ? ORDER BY position'
   );
 
   const workbook = new ExcelJS.Workbook();
