@@ -183,64 +183,242 @@ setInterval(updateCountdown, 1000);
 const form = $('#rsvp-form');
 const successBox = $('#rsvp-success');
 const successMessage = $('#success-message');
-const attendingOnly = $('.attending-only');
-const nameInput = $('#name');
+const attendingOnly = $$('.attending-only');
+const nameInput = $('#name'); // legacy single input — used as fallback when no family
 
-// Pass-holder name mirrors the name input as it's typed
-nameInput.addEventListener('input', () => {
-  const v = nameInput.value.trim();
-  passHolderEl.textContent = v ? v.split(/\s+/).slice(0, 2).join(' ') : '— guest —';
-});
+const familyDataEl = document.getElementById('family-data');
+const familyData = familyDataEl ? JSON.parse(familyDataEl.textContent) : null;
+const token = familyData ? location.pathname.split('/i/')[1] : null;
 
-// Show/hide guest count fields based on attendance choice
-form.addEventListener('change', (e) => {
-  if (e.target.name === 'attending') {
-    if (e.target.value === 'no') attendingOnly.classList.add('hidden');
-    else                          attendingOnly.classList.remove('hidden');
-  }
-});
+const countPillsEl  = $('#count-pills');
+const attendeeListEl = $('#attendee-list');
+const slotsLineEl   = document.querySelector('[data-bp-slots-line]');
+const bpTitleEl     = document.querySelector('[data-bp-title]');
+const submitBtn     = form ? form.querySelector('.bp-submit') : null;
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const submitBtn = form.querySelector('.bp-submit');
-  submitBtn.disabled = true;
-  const original = submitBtn.innerHTML;
-  submitBtn.innerHTML = '<span>STAMPING…</span>';
+// Track current selection
+let currentAttendeeCount = 1;
 
-  const data = Object.fromEntries(new FormData(form).entries());
+function setAttendingOnly(visible) {
+  attendingOnly.forEach(el => el.classList.toggle('hidden', !visible));
+}
 
-  try {
-    const res = await fetch('/api/rsvp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+function renderCountPills(maxSlots, selected) {
+  countPillsEl.innerHTML = '';
+  for (let i = 1; i <= maxSlots; i++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'count-pill';
+    b.textContent = String(i);
+    b.dataset.count = String(i);
+    b.setAttribute('aria-pressed', String(i === selected));
+    b.addEventListener('click', () => {
+      currentAttendeeCount = i;
+      countPillsEl.querySelectorAll('.count-pill').forEach(p =>
+        p.setAttribute('aria-pressed', p.dataset.count === String(i) ? 'true' : 'false'));
+      renderAttendeeRows(currentAttendeeCount);
     });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'Something went wrong.');
+    countPillsEl.appendChild(b);
+  }
+}
 
-    form.classList.add('hidden');
-    successBox.classList.remove('hidden');
+function renderAttendeeRows(n, prefill = []) {
+  attendeeListEl.innerHTML = '';
+  const lastNameGuess = (familyData?.name || '').replace(/\s*Family\s*$/i, '').trim();
+  for (let i = 0; i < n; i++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'attendee-row';
+    const num = document.createElement('span');
+    num.className = 'attendee-num';
+    num.textContent = `Attendee ${i + 1}`;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.required = true;
+    inp.maxLength = 120;
+    inp.placeholder = lastNameGuess ? `e.g. First ${lastNameGuess}` : 'First Last';
+    inp.dataset.attendee = String(i);
+    if (prefill[i]?.name) inp.value = prefill[i].name;
+    wrap.appendChild(num);
+    wrap.appendChild(inp);
+    attendeeListEl.appendChild(wrap);
+  }
+}
 
-    if (data.attending === 'yes') {
-      successMessage.textContent =
-        `Pass stamped, ${data.name.split(' ')[0]}! See you at the parade.`;
-      if (window.confettiBurst) window.confettiBurst();
-      bumpSparkles(25);
-      showToast('★  Magic Pass stamped — see you soon!');
+function setEditMode(isEdit, lastUpdatedISO) {
+  if (!bpTitleEl) return;
+  bpTitleEl.textContent = isEdit
+    ? `Update your pass, ${familyData.name}.`
+    : `Claim your pass, ${familyData.name}.`;
+  if (submitBtn) {
+    submitBtn.querySelector('span').textContent = isEdit ? 'UPDATE MY PASS' : 'STAMP MY PASS';
+  }
+  // Last-updated line (only on edit)
+  let lu = document.querySelector('.bp-last-updated');
+  if (isEdit) {
+    if (!lu) {
+      lu = document.createElement('p');
+      lu.className = 'bp-last-updated';
+      bpTitleEl.parentElement.appendChild(lu);
+    }
+    lu.textContent = `Last updated ${relativeTime(new Date(lastUpdatedISO))}.`;
+  } else if (lu) {
+    lu.remove();
+  }
+}
+
+function relativeTime(d) {
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60)         return 'just now';
+  if (diff < 3600)       return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400)      return `${Math.floor(diff / 3600)} hr ago`;
+  if (diff < 7 * 86400)  return `${Math.floor(diff / 86400)} day${Math.floor(diff/86400)===1?'':'s'} ago`;
+  return d.toLocaleDateString();
+}
+
+// ---------- Initialise based on page mode ----------
+if (familyData && form) {
+  // gate-family mode: bind form to this family.
+  passHolderEl.textContent = familyData.name;
+  if (slotsLineEl) {
+    slotsLineEl.textContent = `Up to ${familyData.max_slots} attendees on this invitation.`;
+  }
+
+  const initialAttending = familyData.attending; // 'yes' | 'no' | null
+  const isEdit = initialAttending !== null;
+  setEditMode(isEdit, familyData.updated_at || familyData.claimed_at);
+
+  if (initialAttending === 'no') {
+    form.querySelector('input[name="attending"][value="no"]').checked = true;
+    setAttendingOnly(false);
+  } else {
+    // Pre-select YES on edit-yes; otherwise leave both unchecked but render slots.
+    if (initialAttending === 'yes') {
+      form.querySelector('input[name="attending"][value="yes"]').checked = true;
+    }
+    setAttendingOnly(true);
+    const initialCount = isEdit && initialAttending === 'yes'
+      ? familyData.attendee_count
+      : familyData.max_slots;
+    currentAttendeeCount = initialCount;
+    renderCountPills(familyData.max_slots, initialCount);
+    renderAttendeeRows(initialCount, familyData.attendees || []);
+  }
+
+  // Pre-fill message
+  if (familyData.message) {
+    form.querySelector('textarea[name="message"]').value = familyData.message;
+  }
+
+  // attending toggle
+  form.addEventListener('change', (e) => {
+    if (e.target.name !== 'attending') return;
+    if (e.target.value === 'no') {
+      setAttendingOnly(false);
     } else {
-      successMessage.textContent =
-        `Thanks for letting us know, ${data.name.split(' ')[0]}. You'll be missed!`;
+      setAttendingOnly(true);
+      if (countPillsEl.children.length === 0) {
+        renderCountPills(familyData.max_slots, familyData.max_slots);
+        currentAttendeeCount = familyData.max_slots;
+        renderAttendeeRows(currentAttendeeCount);
+      }
+    }
+  });
+
+  // submit
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    const originalLabel = submitBtn.querySelector('span').textContent;
+    submitBtn.querySelector('span').textContent = 'STAMPING…';
+
+    const attending = form.querySelector('input[name="attending"]:checked')?.value;
+    if (!attending) {
+      showToast('⚠  Please choose YES or NO.');
+      submitBtn.disabled = false;
+      submitBtn.querySelector('span').textContent = originalLabel;
+      return;
     }
 
-    // Force progress to 100% on completion
-    setProgress(100);
-    successBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } catch (err) {
-    showToast('⚠  ' + err.message);
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = original;
-  }
-});
+    let body = { attending };
+    if (attending === 'yes') {
+      const inputs = attendeeListEl.querySelectorAll('input');
+      const attendees = Array.from(inputs).map(i => ({ name: i.value.trim() }));
+      // Client-side guard
+      const blanks = attendees.filter(a => !a.name);
+      if (blanks.length) {
+        showToast('⚠  Please fill in every attendee name.');
+        submitBtn.disabled = false;
+        submitBtn.querySelector('span').textContent = originalLabel;
+        return;
+      }
+      body.attendee_count = currentAttendeeCount;
+      body.attendees = attendees;
+    }
+    const messageVal = form.querySelector('textarea[name="message"]').value.trim();
+    if (messageVal) body.message = messageVal;
+
+    try {
+      const res = await fetch(`/api/family/${encodeURIComponent(token)}/rsvp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Server error.');
+
+      form.classList.add('hidden');
+      successBox.classList.remove('hidden');
+      if (attending === 'yes') {
+        successMessage.textContent = `Pass stamped, ${familyData.name}! See you at the parade.`;
+        if (window.confettiBurst) window.confettiBurst();
+        bumpSparkles(25);
+        showToast('★  Magic Pass stamped — see you soon!');
+      } else {
+        successMessage.textContent = `Thanks for letting us know, ${familyData.name}. You'll be missed!`;
+      }
+      setProgress(100);
+
+      // Add (or re-show) an "Edit my pass" link that swaps the form back in,
+      // pre-filled with what the server now has, so plans can change without a refresh.
+      let editLink = successBox.querySelector('.edit-again-link');
+      if (!editLink) {
+        editLink = document.createElement('button');
+        editLink.type = 'button';
+        editLink.className = 'edit-again-link';
+        editLink.textContent = 'Need to change something? Edit my pass →';
+        successBox.appendChild(editLink);
+        editLink.addEventListener('click', () => {
+          // Refresh the local familyData snapshot from json.family so re-edit pre-fills correctly
+          Object.assign(familyData, json.family);
+          setEditMode(true, familyData.updated_at);
+          successBox.classList.add('hidden');
+          form.classList.remove('hidden');
+          submitBtn.disabled = false;
+          submitBtn.querySelector('span').textContent = 'UPDATE MY PASS';
+        });
+      }
+
+      successBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (err) {
+      showToast('⚠  ' + err.message);
+      submitBtn.disabled = false;
+      submitBtn.querySelector('span').textContent = originalLabel;
+    }
+  });
+} else if (form) {
+  // gate-link or gate-invalid: don't bind submit. Disable it visibly so it can't be tabbed to.
+  if (submitBtn) submitBtn.disabled = true;
+}
+
+// nameInput was used in the old flow to mirror into the pass-holder; in family
+// mode, pass-holder is set above. We keep nameInput's listener defensive in
+// case the legacy field is still in the DOM and reachable.
+if (nameInput && !familyData) {
+  nameInput.addEventListener('input', () => {
+    const v = nameInput.value.trim();
+    passHolderEl.textContent = v ? v.split(/\s+/).slice(0, 2).join(' ') : '— guest —';
+  });
+}
 
 // ---------- Music (Web Audio synth, no audio files) ----------
 const musicBtn = $('#music-toggle');
