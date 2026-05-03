@@ -335,14 +335,27 @@ function renderStampedPass() {
   successBox.appendChild(lead);
 
   if (attending === 'yes' && familyData.attendees?.length) {
-    const list = document.createElement('ul');
-    list.className = 'stamped-attendees';
-    familyData.attendees.forEach(a => {
-      const li = document.createElement('li');
-      li.textContent = a.name;
-      list.appendChild(li);
-    });
-    successBox.appendChild(list);
+    const adults = familyData.attendees.filter(a => a.kind === 'adult');
+    const kids   = familyData.attendees.filter(a => a.kind === 'kid');
+
+    const renderGroup = (label, group) => {
+      if (!group.length) return;
+      const heading = document.createElement('p');
+      heading.className = 'stamped-group';
+      heading.textContent = `★ ${label.toUpperCase()} (${group.length})`;
+      successBox.appendChild(heading);
+
+      const list = document.createElement('ul');
+      list.className = 'stamped-attendees';
+      group.forEach(a => {
+        const li = document.createElement('li');
+        li.textContent = a.name;
+        list.appendChild(li);
+      });
+      successBox.appendChild(list);
+    };
+    renderGroup('Adults', adults);
+    renderGroup('Kids',   kids);
   }
 
   if (familyData.message) {

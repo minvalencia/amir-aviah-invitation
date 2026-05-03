@@ -1491,3 +1491,6 @@ body[data-landing-mode="gate-family"] [data-bp-slots-line] {
 .kind-section + .kind-section { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px dashed rgba(255,255,255,.18); }
 .kind-section.hidden { display: none; }
 .kind-names-label { display: block; margin-top: .6rem; font-size: .85rem; opacity: .8; }
+
+.stamped-group { font-family: 'Bungee', sans-serif; font-size: .72rem; letter-spacing: .25em; color: #b51c2a; margin-top: .9rem; text-align: center; }
+.stamped-group + .stamped-attendees { margin-top: .25rem; }
