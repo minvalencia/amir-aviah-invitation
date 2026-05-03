@@ -14,7 +14,8 @@ const tableContainer = $('#table-container');
 const toastEl = $('#toast');
 const addForm = $('#add-family-form');
 const nameInput = $('#af-name');
-const slotsInput = $('#af-slots');
+const adultsInput = $('#af-adults');
+const kidsInput   = $('#af-kids');
 
 downloadLink.href = `${ADMIN_BASE}/api/download`;
 
@@ -53,9 +54,20 @@ $$('.filter button').forEach(btn => {
 addForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = nameInput.value.trim();
-  const max_slots = parseInt(slotsInput.value, 10);
-  if (!name || !Number.isInteger(max_slots) || max_slots < 1 || max_slots > 20) {
-    showToast('⚠ Family name and slots (1–20) are required.');
+  const adult_slots = parseInt(adultsInput.value, 10);
+  const kid_slots   = parseInt(kidsInput.value, 10);
+  if (!name) {
+    showToast('⚠ Family name is required.');
+    return;
+  }
+  if (!Number.isInteger(adult_slots) || adult_slots < 0 || adult_slots > 20 ||
+      !Number.isInteger(kid_slots)   || kid_slots   < 0 || kid_slots   > 20) {
+    showToast('⚠ Adult and kid slots must each be 0–20.');
+    return;
+  }
+  const total = adult_slots + kid_slots;
+  if (total < 1 || total > 20) {
+    showToast('⚠ Total slots (adults + kids) must be 1–20.');
     return;
   }
   try {
@@ -63,7 +75,7 @@ addForm.addEventListener('submit', async (e) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ name, max_slots })
+      body: JSON.stringify({ name, adult_slots, kid_slots })
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Could not create family.');
@@ -71,7 +83,8 @@ addForm.addEventListener('submit', async (e) => {
     const ok = await copyToClipboard(json.share_url);
     showToast(ok ? `Link copied for ${json.family.name} — paste it into WhatsApp.` : 'Created. Copy the link from the table.');
     addForm.reset();
-    slotsInput.value = '4';
+    adultsInput.value = '2';
+    kidsInput.value   = '2';
     nameInput.focus();
     await load();
   } catch (err) {
@@ -86,11 +99,12 @@ async function load() {
     const json = await res.json();
     if (!json.ok) throw new Error('Failed to load.');
 
-    $('#stat-total').textContent     = json.stats.families_total;
-    $('#stat-yes').textContent       = json.stats.yes_count;
-    $('#stat-no').textContent        = json.stats.no_count;
-    $('#stat-pending').textContent   = json.stats.pending_count;
-    $('#stat-attendees').textContent = json.stats.total_attendees;
+    $('#stat-total').textContent   = json.stats.families_total;
+    $('#stat-yes').textContent     = json.stats.yes_count;
+    $('#stat-no').textContent      = json.stats.no_count;
+    $('#stat-pending').textContent = json.stats.pending_count;
+    $('#stat-adults').textContent  = json.stats.adult_count;
+    $('#stat-kids').textContent    = json.stats.kid_count;
 
     families = json.families;
     renderTable();
@@ -113,9 +127,10 @@ function isEdited(f) {
   return f.claimed_at && f.updated_at && (new Date(f.updated_at) - new Date(f.claimed_at) > 1000);
 }
 function slotsCell(f) {
-  if (f.attending === 'yes') return `${f.attendee_count}/${f.max_slots}`;
-  if (f.attending === 'no')  return `0/${f.max_slots}`;
-  return `—/${f.max_slots}`;
+  const max = `${f.adult_slots}A+${f.kid_slots}K`;
+  if (f.attending === 'yes') return `${f.adult_count}A+${f.kid_count}K / ${max}`;
+  if (f.attending === 'no')  return `0 / ${max}`;
+  return `— / ${max}`;
 }
 function relativeTime(iso) {
   if (!iso) return '—';
@@ -215,9 +230,14 @@ function renderTable() {
 }
 
 function renderDetail(f) {
-  const att = (f.attendees || []).map(a => `<li>${escapeHtml(a.name)}</li>`).join('');
+  const adults = (f.attendees || []).filter(a => a.kind === 'adult');
+  const kids   = (f.attendees || []).filter(a => a.kind === 'kid');
+  const block = (label, list) => list.length
+    ? `<div class="attendees-group"><strong>${label} (${list.length})</strong>
+        <ul class="attendees-sublist">${list.map(a => `<li>${escapeHtml(a.name)}</li>`).join('')}</ul></div>`
+    : '';
   const msg = f.message ? `<div class="sub-message">"${escapeHtml(f.message)}"</div>` : '';
-  return `<ul class="attendees-sublist">${att}</ul>${msg}`;
+  return `${block('Adults', adults)}${block('Kids', kids)}${msg}`;
 }
 
 load();
