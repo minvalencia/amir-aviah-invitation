@@ -19,9 +19,8 @@ COPY package*.json ./
 COPY server.js ./
 COPY public ./public
 
-# Persistent data dir (mount Render disk here for persistence)
+# Persistent data dir (attach a Render disk or Railway Volume at /app/data for persistence)
 RUN mkdir -p /app/data
-VOLUME ["/app/data"]
 
 ENV NODE_ENV=production
 ENV PORT=3000
