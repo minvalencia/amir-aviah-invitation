@@ -102,9 +102,11 @@ async function load() {
     $('#stat-total').textContent   = json.stats.families_total;
     $('#stat-yes').textContent     = json.stats.yes_count;
     $('#stat-no').textContent      = json.stats.no_count;
-    $('#stat-pending').textContent = json.stats.pending_count;
-    $('#stat-adults').textContent  = json.stats.adult_count;
-    $('#stat-kids').textContent    = json.stats.kid_count;
+    $('#stat-pending').textContent        = json.stats.pending_count;
+    $('#stat-pending-adults').textContent = json.stats.pending_adults;
+    $('#stat-pending-kids').textContent   = json.stats.pending_kids;
+    $('#stat-adults').textContent         = json.stats.adult_count;
+    $('#stat-kids').textContent           = json.stats.kid_count;
 
     families = json.families;
     renderTable();

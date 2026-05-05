@@ -187,13 +187,15 @@
       th:nth-child(4), td:nth-child(4),
       th:nth-child(8), td:nth-child(8) { display: none; }
     }
-/* Stat tile color overrides — 6 tiles now */
+/* Stat tile color overrides — 8 tiles now */
 .stat:nth-child(1) { border-color: var(--red); }
 .stat:nth-child(2) { border-color: #06A77D; }
 .stat:nth-child(3) { border-color: var(--red); }
 .stat:nth-child(4) { border-color: #B0B0B0; }
-.stat:nth-child(5) { border-color: var(--pink); }
-.stat:nth-child(6) { border-color: #F4C430; }
+.stat:nth-child(5) { border-color: #B0B0B0; }
+.stat:nth-child(6) { border-color: #B0B0B0; }
+.stat:nth-child(7) { border-color: var(--pink); }
+.stat:nth-child(8) { border-color: #F4C430; }
 
 .add-family {
   margin: 0 2rem 1.5rem;
@@ -277,9 +279,11 @@
     <div class="stat"><div class="stat-label">Families</div><div class="stat-value" id="stat-total">0</div></div>
     <div class="stat"><div class="stat-label">Yes</div>     <div class="stat-value" id="stat-yes">0</div></div>
     <div class="stat"><div class="stat-label">No</div>      <div class="stat-value" id="stat-no">0</div></div>
-    <div class="stat"><div class="stat-label">Pending</div> <div class="stat-value" id="stat-pending">0</div></div>
-    <div class="stat"><div class="stat-label">Adults</div>  <div class="stat-value" id="stat-adults">0</div></div>
-    <div class="stat"><div class="stat-label">Kids</div>    <div class="stat-value" id="stat-kids">0</div></div>
+    <div class="stat"><div class="stat-label">Pending</div>        <div class="stat-value" id="stat-pending">0</div></div>
+    <div class="stat"><div class="stat-label">Adults Pending</div> <div class="stat-value" id="stat-pending-adults">0</div></div>
+    <div class="stat"><div class="stat-label">Kids Pending</div>   <div class="stat-value" id="stat-pending-kids">0</div></div>
+    <div class="stat"><div class="stat-label">Adults</div>         <div class="stat-value" id="stat-adults">0</div></div>
+    <div class="stat"><div class="stat-label">Kids</div>           <div class="stat-value" id="stat-kids">0</div></div>
   </section>
 
   <section class="add-family">

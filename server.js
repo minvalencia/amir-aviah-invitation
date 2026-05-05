@@ -423,6 +423,8 @@ app.get(`/${ADMIN_PATH}/api/families`, adminAuth, (req, res) => {
     yes_count:      result.filter(r => r.attending === 'yes').length,
     no_count:       result.filter(r => r.attending === 'no').length,
     pending_count:  result.filter(r => r.attending === null).length,
+    pending_adults: result.filter(r => r.attending === null).reduce((s, r) => s + (r.adult_slots || 0), 0),
+    pending_kids:   result.filter(r => r.attending === null).reduce((s, r) => s + (r.kid_slots   || 0), 0),
     adult_count:    result.filter(r => r.attending === 'yes').reduce((s, r) => s + (r.adult_count || 0), 0),
     kid_count:      result.filter(r => r.attending === 'yes').reduce((s, r) => s + (r.kid_count   || 0), 0)
   };
